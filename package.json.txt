@@ -1,0 +1,32 @@
+{
+  "name": "tourism-alarm-catalunya",
+  "version": "1.0.0",
+  "description": "Sistema de monitoreo turístico de Catalunya con datos IDESCAT",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Build completed'",
+    "start": "vercel dev --listen 3000",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "tourism",
+    "catalunya",
+    "idescat",
+    "maps",
+    "vercel",
+    "api"
+  ],
+  "author": "Tourism Alarm Team",
+  "license": "MIT"
+}
