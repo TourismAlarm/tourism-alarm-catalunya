@@ -1,16 +1,5 @@
-
 // api/municipalities.js
-// API endpoint para obtener datos de municipios de Catalunya con datos reales de Idescat
-
-const IDESCAT_BASE_URL = 'http://api.idescat.cat/emex/v1';
-
-// Cache simple en memoria
-let cache = {
-  municipios: null,
-  lastFetch: null
-};
-
-const CACHE_DURATION = 1000 * 60 * 60; // 1 hora
+// API endpoint con debugging para detectar el problema
 
 export default async function handler(req, res) {
   // Configurar CORS
@@ -23,70 +12,125 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { id, limit = 20, offset = 0, search, comarca } = req.query;
-
-    // Si se solicita un municipio específico
-    if (id) {
-      const municipalityData = await getMunicipalityById(id);
-      return res.status(200).json({
-        success: true,
-        data: municipalityData,
-        timestamp: new Date().toISOString()
-      });
+    const { debug } = req.query;
+    
+    // Modo debug para ver quÃ© estÃ¡ pasando
+    if (debug === 'true') {
+      try {
+        const testResponse = await fetch('https://api.idescat.cat/emex/v1/nodes.json?tipus=mun');
+        const responseText = await testResponse.text();
+        
+        return res.status(200).json({
+          debug: true,
+          idescat_status: testResponse.status,
+          idescat_ok: testResponse.ok,
+          response_length: responseText.length,
+          response_preview: responseText.substring(0, 500),
+          headers: Object.fromEntries(testResponse.headers.entries())
+        });
+      } catch (fetchError) {
+        return res.status(200).json({
+          debug: true,
+          error: fetchError.message,
+          stack: fetchError.stack
+        });
+      }
     }
 
-    // Obtener todos los municipios
-    let municipios = await getAllMunicipalities();
+    // Por ahora, devolver datos hardcodeados de todos los municipios principales
+    const municipiosData = [
+      // Capitals de provÃ­ncia
+      { id: "080193", name: "Barcelona", comarca: "BarcelonÃ¨s", poblacio: 1620343, visitants_anuals: 15000000, ratio_turistes: 9.25, alertLevel: "critical" },
+      { id: "170792", name: "Girona", comarca: "GironÃ¨s", poblacio: 103369, visitants_anuals: 2500000, ratio_turistes: 24.19, alertLevel: "critical" },
+      { id: "431481", name: "Tarragona", comarca: "TarragonÃ¨s", poblacio: 134515, visitants_anuals: 1200000, ratio_turistes: 8.92, alertLevel: "high" },
+      { id: "250907", name: "Lleida", comarca: "SegriÃ ", poblacio: 140403, visitants_anuals: 800000, ratio_turistes: 5.69, alertLevel: "medium" },
+      
+      // Ciutats importants
+      { id: "081691", name: "Sabadell", comarca: "VallÃ¨s Occidental", poblacio: 216520, visitants_anuals: 650000, ratio_turistes: 3.00, alertLevel: "medium" },
+      { id: "082009", name: "Terrassa", comarca: "VallÃ¨s Occidental", poblacio: 223627, visitants_anuals: 670000, ratio_turistes: 3.00, alertLevel: "medium" },
+      { id: "080736", name: "Badalona", comarca: "BarcelonÃ¨s", poblacio: 223166, visitants_anuals: 446332, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "081013", name: "L'Hospitalet de Llobregat", comarca: "BarcelonÃ¨s", poblacio: 264923, visitants_anuals: 529846, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "081234", name: "MatarÃ³", comarca: "Maresme", poblacio: 129661, visitants_anuals: 648305, ratio_turistes: 5.00, alertLevel: "medium" },
+      { id: "432038", name: "Reus", comarca: "Baix Camp", poblacio: 106168, visitants_anuals: 530840, ratio_turistes: 5.00, alertLevel: "medium" },
+      
+      // Destinacions turÃ­stiques Costa Brava
+      { id: "171521", name: "Roses", comarca: "Alt EmpordÃ ", poblacio: 20359, visitants_anuals: 1500000, ratio_turistes: 73.68, alertLevel: "critical" },
+      { id: "170235", name: "Blanes", comarca: "Selva", poblacio: 40020, visitants_anuals: 2000000, ratio_turistes: 49.98, alertLevel: "critical" },
+      { id: "170629", name: "Castell-Platja d'Aro", comarca: "Baix EmpordÃ ", poblacio: 11045, visitants_anuals: 800000, ratio_turistes: 72.46, alertLevel: "critical" },
+      { id: "171032", name: "Lloret de Mar", comarca: "Selva", poblacio: 40942, visitants_anuals: 3500000, ratio_turistes: 85.50, alertLevel: "critical" },
+      { id: "171394", name: "Palafrugell", comarca: "Baix EmpordÃ ", poblacio: 23481, visitants_anuals: 1200000, ratio_turistes: 51.10, alertLevel: "critical" },
+      { id: "172023", name: "Tossa de Mar", comarca: "Selva", poblacio: 5564, visitants_anuals: 500000, ratio_turistes: 89.90, alertLevel: "critical" },
+      { id: "170266", name: "Begur", comarca: "Baix EmpordÃ ", poblacio: 4008, visitants_anuals: 300000, ratio_turistes: 74.85, alertLevel: "critical" },
+      { id: "170481", name: "CadaquÃ©s", comarca: "Alt EmpordÃ ", poblacio: 2962, visitants_anuals: 250000, ratio_turistes: 84.40, alertLevel: "critical" },
+      
+      // Destinacions turÃ­stiques Costa Daurada
+      { id: "431713", name: "Salou", comarca: "TarragonÃ¨s", poblacio: 28563, visitants_anuals: 2500000, ratio_turistes: 87.52, alertLevel: "critical" },
+      { id: "430385", name: "Cambrils", comarca: "Baix Camp", poblacio: 34169, visitants_anuals: 1800000, ratio_turistes: 52.68, alertLevel: "critical" },
+      { id: "432094", name: "Sitges", comarca: "Garraf", poblacio: 29577, visitants_anuals: 2000000, ratio_turistes: 67.62, alertLevel: "critical" },
+      { id: "430065", name: "Calafell", comarca: "Baix PenedÃ¨s", poblacio: 28055, visitants_anuals: 1400000, ratio_turistes: 49.90, alertLevel: "critical" },
+      
+      // Pirineus
+      { id: "250209", name: "La Seu d'Urgell", comarca: "Alt Urgell", poblacio: 12252, visitants_anuals: 300000, ratio_turistes: 24.49, alertLevel: "high" },
+      { id: "252230", name: "Vielha e Mijaran", comarca: "Val d'Aran", poblacio: 5477, visitants_anuals: 400000, ratio_turistes: 73.05, alertLevel: "critical" },
+      { id: "170110", name: "PuigcerdÃ ", comarca: "Cerdanya", poblacio: 9335, visitants_anuals: 280000, ratio_turistes: 30.00, alertLevel: "high" },
+      
+      // Pobles petits turÃ­stics
+      { id: "081381", name: "Montserrat", comarca: "Bages", poblacio: 695, visitants_anuals: 3000000, ratio_turistes: 4316.55, alertLevel: "critical" },
+      { id: "432051", name: "Rupit i Pruit", comarca: "Osona", poblacio: 280, visitants_anuals: 150000, ratio_turistes: 535.71, alertLevel: "critical" },
+      { id: "170433", name: "BesalÃº", comarca: "Garrotxa", poblacio: 2472, visitants_anuals: 200000, ratio_turistes: 80.91, alertLevel: "critical" },
+      { id: "171282", name: "Peratallada", comarca: "Baix EmpordÃ ", poblacio: 368, visitants_anuals: 100000, ratio_turistes: 271.74, alertLevel: "critical" },
+      
+      // Altres municipis
+      { id: "080569", name: "CornellÃ  de Llobregat", comarca: "Baix Llobregat", poblacio: 89936, visitants_anuals: 179872, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "082136", name: "Sant Cugat del VallÃ¨s", comarca: "VallÃ¨s Occidental", poblacio: 92977, visitants_anuals: 185954, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "081819", name: "Sant Boi de Llobregat", comarca: "Baix Llobregat", poblacio: 84500, visitants_anuals: 169000, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "081691", name: "RubÃ­", comarca: "VallÃ¨s Occidental", poblacio: 78591, visitants_anuals: 157182, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "083078", name: "Viladecans", comarca: "Baix Llobregat", poblacio: 67197, visitants_anuals: 134394, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "080892", name: "El Prat de Llobregat", comarca: "Baix Llobregat", poblacio: 65385, visitants_anuals: 130770, ratio_turistes: 2.00, alertLevel: "low" },
+      { id: "080774", name: "Castelldefels", comarca: "Baix Llobregat", poblacio: 67460, visitants_anuals: 337300, ratio_turistes: 5.00, alertLevel: "medium" },
+      { id: "081138", name: "Manresa", comarca: "Bages", poblacio: 78245, visitants_anuals: 234735, ratio_turistes: 3.00, alertLevel: "medium" },
+      { id: "083076", name: "Vilanova i la GeltrÃº", comarca: "Garraf", poblacio: 67733, visitants_anuals: 338665, ratio_turistes: 5.00, alertLevel: "medium" },
+      { id: "080735", name: "Granollers", comarca: "VallÃ¨s Oriental", poblacio: 62419, visitants_anuals: 124838, ratio_turistes: 2.00, alertLevel: "low" }
+    ];
 
-    // Filtrar por búsqueda
+    const { limit = 20, offset = 0, search, comarca } = req.query;
+    
+    let filteredMunicipios = [...municipiosData];
+    
+    // Filtrar por bÃºsqueda
     if (search) {
       const searchLower = search.toLowerCase();
-      municipios = municipios.filter(m => 
+      filteredMunicipios = filteredMunicipios.filter(m => 
         m.name.toLowerCase().includes(searchLower) ||
         m.comarca.toLowerCase().includes(searchLower)
       );
     }
-
+    
     // Filtrar por comarca
     if (comarca) {
-      municipios = municipios.filter(m => 
+      filteredMunicipios = filteredMunicipios.filter(m => 
         m.comarca.toLowerCase() === comarca.toLowerCase()
       );
     }
-
-    // Aplicar paginación
-    const total = municipios.length;
+    
+    // Aplicar paginaciÃ³n
+    const total = filteredMunicipios.length;
     const startIndex = parseInt(offset);
     const endIndex = startIndex + parseInt(limit);
-    const paginatedMunicipios = municipios.slice(startIndex, endIndex);
-
-    // Enriquecer con datos adicionales (solo para los paginados)
-    const enrichedMunicipios = await Promise.all(
-      paginatedMunicipios.map(async (municipi) => {
-        try {
-          const additionalData = await getMunicipalityData(municipi.id);
-          return {
-            ...municipi,
-            ...additionalData
-          };
-        } catch (error) {
-          console.error(`Error obteniendo datos de ${municipi.name}:`, error);
-          return municipi;
-        }
-      })
-    );
-
+    const paginatedMunicipios = filteredMunicipios.slice(startIndex, endIndex);
+    
     return res.status(200).json({
       success: true,
-      count: enrichedMunicipios.length,
+      count: paginatedMunicipios.length,
       total: total,
-      data: enrichedMunicipios,
+      data: paginatedMunicipios,
       pagination: {
         limit: parseInt(limit),
         offset: parseInt(offset),
         hasMore: endIndex < total
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      source: "hardcoded_data"
     });
 
   } catch (error) {
@@ -97,204 +141,4 @@ export default async function handler(req, res) {
       details: error.message
     });
   }
-}
-
-// Funciones auxiliares
-
-async function getAllMunicipalities() {
-  // Usar caché si está disponible y no ha expirado
-  if (cache.municipios && cache.lastFetch && 
-      (Date.now() - cache.lastFetch < CACHE_DURATION)) {
-    return cache.municipios;
-  }
-
-  try {
-    const response = await fetch(`${IDESCAT_BASE_URL}/nodes.json?tipus=mun`);
-    if (!response.ok) {
-      throw new Error(`Error Idescat: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const municipios = processMunicipalitiesList(data);
-    
-    // Actualizar caché
-    cache.municipios = municipios;
-    cache.lastFetch = Date.now();
-    
-    return municipios;
-  } catch (error) {
-    console.error('Error obteniendo municipios:', error);
-    // Si falla, devolver datos de respaldo
-    return getBackupMunicipalities();
-  }
-}
-
-function processMunicipalitiesList(data) {
-  const municipios = [];
-  
-  if (data.fitxes && data.fitxes.v && data.fitxes.v[0]) {
-    const catalunya = data.fitxes.v[0];
-    
-    if (catalunya.v) {
-      catalunya.v.forEach(comarca => {
-        const comarcaName = comarca.content || comarca.c;
-        
-        if (comarca.v) {
-          comarca.v.forEach(municipi => {
-            municipios.push({
-              id: municipi.id,
-              name: municipi.content || municipi.c,
-              comarca: comarcaName,
-              comarcaId: comarca.id
-            });
-          });
-        }
-      });
-    }
-  }
-  
-  return municipios;
-}
-
-async function getMunicipalityData(municipalityId) {
-  try {
-    // Indicadores disponibles en Idescat
-    const indicators = 'f1,f271,f2,f3'; // Población, superficie, hombres, mujeres
-    
-    const response = await fetch(
-      `${IDESCAT_BASE_URL}/dades/${municipalityId}.json?i=${indicators}`
-    );
-    
-    if (!response.ok) {
-      return getEstimatedData(municipalityId);
-    }
-
-    const data = await response.json();
-    return processDetailedData(data, municipalityId);
-  } catch (error) {
-    console.error(`Error obteniendo datos de ${municipalityId}:`, error);
-    return getEstimatedData(municipalityId);
-  }
-}
-
-function processDetailedData(data, municipalityId) {
-  let poblacio = 0;
-  let superficie = 0;
-  
-  if (data.fitxes && data.fitxes.cols && data.fitxes.cols.col) {
-    // Buscar el municipio en los resultados
-    const municipi = data.fitxes.cols.col.find(c => c.id === municipalityId);
-    if (municipi && municipi.i) {
-      municipi.i.forEach(indicator => {
-        if (indicator.id === 'f1' && indicator.v) { // Población
-          poblacio = parseInt(indicator.v.replace(/\./g, '').replace(',', '.'));
-        }
-        if (indicator.id === 'f271' && indicator.v) { // Superficie
-          superficie = parseFloat(indicator.v.replace(',', '.'));
-        }
-      });
-    }
-  }
-
-  // Estimar datos turísticos
-  const tourismData = estimateTourismData(poblacio);
-  
-  return {
-    poblacio: poblacio || 1000,
-    superficie: superficie || 10,
-    densitat: superficie > 0 ? Math.round(poblacio / superficie) : 100,
-    ...tourismData
-  };
-}
-
-function estimateTourismData(poblacio) {
-  // Estimación basada en población y factores turísticos conocidos
-  let visitantsAnuals = poblacio * 2; // Base: 2 visitantes por habitante
-  let alertLevel = 'low';
-  let ratioTuristes = 2;
-  
-  // Ajustes según tamaño de población (ciudades más grandes = más turismo)
-  if (poblacio > 500000) { // Barcelona
-    visitantsAnuals = poblacio * 15;
-    alertLevel = 'critical';
-    ratioTuristes = 15;
-  } else if (poblacio > 100000) { // Ciudades grandes
-    visitantsAnuals = poblacio * 8;
-    alertLevel = 'high';
-    ratioTuristes = 8;
-  } else if (poblacio > 50000) { // Ciudades medianas
-    visitantsAnuals = poblacio * 5;
-    alertLevel = 'medium';
-    ratioTuristes = 5;
-  } else if (poblacio > 20000) { // Pueblos grandes
-    visitantsAnuals = poblacio * 3;
-    alertLevel = 'medium';
-    ratioTuristes = 3;
-  }
-  
-  return {
-    visitants_anuals: Math.round(visitantsAnuals),
-    ratio_turistes: ratioTuristes,
-    alertLevel: alertLevel
-  };
-}
-
-function getEstimatedData(municipalityId) {
-  // Datos estimados de respaldo
-  return {
-    poblacio: 5000,
-    superficie: 25,
-    densitat: 200,
-    visitants_anuals: 10000,
-    ratio_turistes: 2,
-    alertLevel: 'low'
-  };
-}
-
-async function getMunicipalityById(id) {
-  const allMunicipalities = await getAllMunicipalities();
-  const municipality = allMunicipalities.find(m => m.id === id);
-  
-  if (!municipality) {
-    throw new Error('Municipio no encontrado');
-  }
-  
-  const additionalData = await getMunicipalityData(id);
-  return {
-    ...municipality,
-    ...additionalData
-  };
-}
-
-function getBackupMunicipalities() {
-  // Datos de respaldo en caso de fallo
-  return [
-    {
-      id: "080193",
-      name: "Barcelona",
-      comarca: "Barcelonès",
-      poblacio: 1620343,
-      visitants_anuals: 15000000,
-      ratio_turistes: 9.25,
-      alertLevel: "critical"
-    },
-    {
-      id: "170792",
-      name: "Girona",
-      comarca: "Gironès",
-      poblacio: 103369,
-      visitants_anuals: 2500000,
-      ratio_turistes: 24.19,
-      alertLevel: "critical"
-    },
-    {
-      id: "431481",
-      name: "Tarragona",
-      comarca: "Tarragonès",
-      poblacio: 134515,
-      visitants_anuals: 1200000,
-      ratio_turistes: 8.92,
-      alertLevel: "high"
-    }
-  ];
 }
