@@ -9,7 +9,13 @@ class TourismAlarmApp {
         this.markersLayer = null;
         this.allMunicipalities = [];
         this.municipalitiesData = {};
-        this.apiBase = window.location.origin + '/api';
+       // Sistema híbrido: API local en desarrollo, Vercel en producción
+this.apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000/api'     // API local para desarrollo
+    : window.location.origin + '/api'; // API Vercel para producción
+
+// Log para verificar qué API estamos usando
+console.log('🔌 Usando API:', this.apiBase);
         this.state = {
             currentMetric: 'density',
             selectedPrediction: '48',
@@ -275,15 +281,25 @@ class TourismAlarmApp {
         setInterval(() => this.checkApiHealth(), 300000);
     }
 
-    async checkApiHealth() {
-        try {
-            const response = await fetch(`${this.apiBase}/health`);
-            if (response.ok) this.setApiStatus('online');
-            else this.setApiStatus('offline');
-        } catch (error) {
-            this.setApiStatus('offline');
-        }
+async checkApiHealth() {
+    try {
+        // Añadir un timeout para no esperar mucho si la API local no responde
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${this.apiBase}/health`, {
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) this.setApiStatus('online');
+        else this.setApiStatus('offline');
+    } catch (error) {
+        console.warn('API no disponible, usando modo offline');
+        this.setApiStatus('offline');
     }
+}
 
     setApiStatus(status) {
         this.state.apiStatus = status;

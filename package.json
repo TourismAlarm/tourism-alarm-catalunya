@@ -10,7 +10,15 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
+    "@langchain/community": "^0.3.49",
+    "@langchain/ollama": "^0.2.3",
+    "@langchain/openai": "^0.6.1",
     "axios": "^1.6.0",
+    "chromadb": "^3.0.9",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "langchain": "^0.3.29",
+    "node-fetch": "^3.3.2",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
@@ -28,5 +36,9 @@
     "api"
   ],
   "author": "Tourism Alarm Team",
-  "license": "MIT"
+  "license": "MIT",
+  "directories": {
+    "lib": "lib"
+  },
+  "type": "module"
 }
