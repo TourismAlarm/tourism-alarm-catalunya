@@ -2,6 +2,20 @@
 // Endpoint para obtener municipios turísticos con datos reales de IDESCAT
 
 export default async function handler(req, res) {
+export default async function handler(req, res) {
+  // DEBUGGING - ELIMINAR DESPUÉS
+  console.log('🔍 MUNICIPALITIES.JS NUEVO CÓDIGO EJECUTÁNDOSE');
+  
+  if (req.query.debug === 'true') {
+    return res.json({ 
+      message: 'NUEVO CÓDIGO FUNCIONANDO',
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Configurar CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // ... resto del código
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
