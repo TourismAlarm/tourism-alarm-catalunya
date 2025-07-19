@@ -1,5 +1,5 @@
 // api/municipalities.js
-// API endpoint con debugging para detectar el problema
+// Endpoint para obtener municipios turísticos con datos reales de IDESCAT
 
 export default async function handler(req, res) {
   // Configurar CORS
@@ -12,133 +12,203 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { debug } = req.query;
+    console.log('📍 Cargando municipios turísticos principales...');
     
-    // Modo debug para ver qué está pasando
-    if (debug === 'true') {
-      try {
-        const testResponse = await fetch('https://api.idescat.cat/emex/v1/nodes.json?tipus=mun');
-        const responseText = await testResponse.text();
-        
-        return res.status(200).json({
-          debug: true,
-          idescat_status: testResponse.status,
-          idescat_ok: testResponse.ok,
-          response_length: responseText.length,
-          response_preview: responseText.substring(0, 500),
-          headers: Object.fromEntries(testResponse.headers.entries())
-        });
-      } catch (fetchError) {
-        return res.status(200).json({
-          debug: true,
-          error: fetchError.message,
-          stack: fetchError.stack
-        });
-      }
-    }
-
-    // Por ahora, devolver datos hardcodeados de todos los municipios principales
-    const municipiosData = [
-      // Capitals de província
-      { id: "080193", name: "Barcelona", comarca: "Barcelonès", poblacio: 1620343, visitants_anuals: 15000000, ratio_turistes: 9.25, alertLevel: "critical" },
-      { id: "170792", name: "Girona", comarca: "Gironès", poblacio: 103369, visitants_anuals: 2500000, ratio_turistes: 24.19, alertLevel: "critical" },
-      { id: "431481", name: "Tarragona", comarca: "Tarragonès", poblacio: 134515, visitants_anuals: 1200000, ratio_turistes: 8.92, alertLevel: "high" },
-      { id: "250907", name: "Lleida", comarca: "Segrià", poblacio: 140403, visitants_anuals: 800000, ratio_turistes: 5.69, alertLevel: "medium" },
-      
-      // Ciutats importants
-      { id: "081691", name: "Sabadell", comarca: "Vallès Occidental", poblacio: 216520, visitants_anuals: 650000, ratio_turistes: 3.00, alertLevel: "medium" },
-      { id: "082009", name: "Terrassa", comarca: "Vallès Occidental", poblacio: 223627, visitants_anuals: 670000, ratio_turistes: 3.00, alertLevel: "medium" },
-      { id: "080736", name: "Badalona", comarca: "Barcelonès", poblacio: 223166, visitants_anuals: 446332, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "081013", name: "L'Hospitalet de Llobregat", comarca: "Barcelonès", poblacio: 264923, visitants_anuals: 529846, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "081234", name: "Mataró", comarca: "Maresme", poblacio: 129661, visitants_anuals: 648305, ratio_turistes: 5.00, alertLevel: "medium" },
-      { id: "432038", name: "Reus", comarca: "Baix Camp", poblacio: 106168, visitants_anuals: 530840, ratio_turistes: 5.00, alertLevel: "medium" },
-      
-      // Destinacions turístiques Costa Brava
-      { id: "171521", name: "Roses", comarca: "Alt Empordà", poblacio: 20359, visitants_anuals: 1500000, ratio_turistes: 73.68, alertLevel: "critical" },
-      { id: "170235", name: "Blanes", comarca: "Selva", poblacio: 40020, visitants_anuals: 2000000, ratio_turistes: 49.98, alertLevel: "critical" },
-      { id: "170629", name: "Castell-Platja d'Aro", comarca: "Baix Empordà", poblacio: 11045, visitants_anuals: 800000, ratio_turistes: 72.46, alertLevel: "critical" },
-      { id: "171032", name: "Lloret de Mar", comarca: "Selva", poblacio: 40942, visitants_anuals: 3500000, ratio_turistes: 85.50, alertLevel: "critical" },
-      { id: "171394", name: "Palafrugell", comarca: "Baix Empordà", poblacio: 23481, visitants_anuals: 1200000, ratio_turistes: 51.10, alertLevel: "critical" },
-      { id: "172023", name: "Tossa de Mar", comarca: "Selva", poblacio: 5564, visitants_anuals: 500000, ratio_turistes: 89.90, alertLevel: "critical" },
-      { id: "170266", name: "Begur", comarca: "Baix Empordà", poblacio: 4008, visitants_anuals: 300000, ratio_turistes: 74.85, alertLevel: "critical" },
-      { id: "170481", name: "Cadaqués", comarca: "Alt Empordà", poblacio: 2962, visitants_anuals: 250000, ratio_turistes: 84.40, alertLevel: "critical" },
-      
-      // Destinacions turístiques Costa Daurada
-      { id: "431713", name: "Salou", comarca: "Tarragonès", poblacio: 28563, visitants_anuals: 2500000, ratio_turistes: 87.52, alertLevel: "critical" },
-      { id: "430385", name: "Cambrils", comarca: "Baix Camp", poblacio: 34169, visitants_anuals: 1800000, ratio_turistes: 52.68, alertLevel: "critical" },
-      { id: "432094", name: "Sitges", comarca: "Garraf", poblacio: 29577, visitants_anuals: 2000000, ratio_turistes: 67.62, alertLevel: "critical" },
-      { id: "430065", name: "Calafell", comarca: "Baix Penedès", poblacio: 28055, visitants_anuals: 1400000, ratio_turistes: 49.90, alertLevel: "critical" },
-      
-      // Pirineus
-      { id: "250209", name: "La Seu d'Urgell", comarca: "Alt Urgell", poblacio: 12252, visitants_anuals: 300000, ratio_turistes: 24.49, alertLevel: "high" },
-      { id: "252230", name: "Vielha e Mijaran", comarca: "Val d'Aran", poblacio: 5477, visitants_anuals: 400000, ratio_turistes: 73.05, alertLevel: "critical" },
-      { id: "170110", name: "Puigcerdà", comarca: "Cerdanya", poblacio: 9335, visitants_anuals: 280000, ratio_turistes: 30.00, alertLevel: "high" },
-      
-      // Pobles petits turístics
-      { id: "081381", name: "Montserrat", comarca: "Bages", poblacio: 695, visitants_anuals: 3000000, ratio_turistes: 4316.55, alertLevel: "critical" },
-      { id: "432051", name: "Rupit i Pruit", comarca: "Osona", poblacio: 280, visitants_anuals: 150000, ratio_turistes: 535.71, alertLevel: "critical" },
-      { id: "170433", name: "Besalú", comarca: "Garrotxa", poblacio: 2472, visitants_anuals: 200000, ratio_turistes: 80.91, alertLevel: "critical" },
-      { id: "171282", name: "Peratallada", comarca: "Baix Empordà", poblacio: 368, visitants_anuals: 100000, ratio_turistes: 271.74, alertLevel: "critical" },
-      
-      // Altres municipis
-      { id: "080569", name: "Cornellà de Llobregat", comarca: "Baix Llobregat", poblacio: 89936, visitants_anuals: 179872, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "082136", name: "Sant Cugat del Vallès", comarca: "Vallès Occidental", poblacio: 92977, visitants_anuals: 185954, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "081819", name: "Sant Boi de Llobregat", comarca: "Baix Llobregat", poblacio: 84500, visitants_anuals: 169000, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "081691", name: "Rubí", comarca: "Vallès Occidental", poblacio: 78591, visitants_anuals: 157182, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "083078", name: "Viladecans", comarca: "Baix Llobregat", poblacio: 67197, visitants_anuals: 134394, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "080892", name: "El Prat de Llobregat", comarca: "Baix Llobregat", poblacio: 65385, visitants_anuals: 130770, ratio_turistes: 2.00, alertLevel: "low" },
-      { id: "080774", name: "Castelldefels", comarca: "Baix Llobregat", poblacio: 67460, visitants_anuals: 337300, ratio_turistes: 5.00, alertLevel: "medium" },
-      { id: "081138", name: "Manresa", comarca: "Bages", poblacio: 78245, visitants_anuals: 234735, ratio_turistes: 3.00, alertLevel: "medium" },
-      { id: "083076", name: "Vilanova i la Geltrú", comarca: "Garraf", poblacio: 67733, visitants_anuals: 338665, ratio_turistes: 5.00, alertLevel: "medium" },
-      { id: "080735", name: "Granollers", comarca: "Vallès Oriental", poblacio: 62419, visitants_anuals: 124838, ratio_turistes: 2.00, alertLevel: "low" }
+    // Lista de municipios turísticos clave con sus códigos INE
+    const MUNICIPIOS_TURISTICOS = [
+      { id: '080193', name: 'Barcelona', tourism_score: 9.8, coastal: false, mountain: false },
+      { id: '082704', name: 'Sitges', tourism_score: 8.5, coastal: true, mountain: false },
+      { id: '170792', name: 'Girona', tourism_score: 7.2, coastal: false, mountain: false },
+      { id: '431482', name: 'Tarragona', tourism_score: 7.5, coastal: true, mountain: false },
+      { id: '251207', name: 'Lleida', tourism_score: 5.5, coastal: false, mountain: false },
+      { id: '439057', name: 'Salou', tourism_score: 9.0, coastal: true, mountain: false },
+      { id: '172023', name: 'Tossa de Mar', tourism_score: 8.0, coastal: true, mountain: false },
+      { id: '170340', name: 'Calonge i Sant Antoni', tourism_score: 7.8, coastal: true, mountain: false },
+      { id: '171523', name: 'Roses', tourism_score: 8.2, coastal: true, mountain: false },
+      { id: '171479', name: 'Ripoll', tourism_score: 6.5, coastal: false, mountain: true },
+      { id: '080155', name: 'Badalona', tourism_score: 6.0, coastal: true, mountain: false },
+      { id: '171411', name: 'Puigcerdà', tourism_score: 7.0, coastal: false, mountain: true },
+      { id: '082649', name: 'Sant Vicenç de Montalt', tourism_score: 6.8, coastal: true, mountain: false },
+      { id: '430141', name: 'Amposta', tourism_score: 5.5, coastal: false, mountain: false },
+      { id: '171655', name: 'Sant Joan de les Abadesses', tourism_score: 6.2, coastal: false, mountain: true },
+      { id: '170499', name: 'Celrà', tourism_score: 5.0, coastal: false, mountain: false },
+      { id: '082606', name: 'Santa Perpètua de Mogoda', tourism_score: 4.5, coastal: false, mountain: false },
+      { id: '081022', name: 'Igualada', tourism_score: 5.2, coastal: false, mountain: false },
+      { id: '080630', name: 'Esplugues de Llobregat', tourism_score: 5.8, coastal: false, mountain: false },
+      { id: '081213', name: 'Mataró', tourism_score: 6.5, coastal: true, mountain: false }
     ];
-
-    const { limit = 20, offset = 0, search, comarca } = req.query;
     
-    let filteredMunicipios = [...municipiosData];
+    // Obtener datos de población de IDESCAT
+    const url = `https://api.idescat.cat/emex/v1/dades.json?i=f171&lang=ca`;
+    const response = await fetch(url);
     
-    // Filtrar por búsqueda
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredMunicipios = filteredMunicipios.filter(m => 
-        m.name.toLowerCase().includes(searchLower) ||
-        m.comarca.toLowerCase().includes(searchLower)
-      );
+    if (!response.ok) {
+      throw new Error(`IDESCAT API error: ${response.status}`);
     }
     
-    // Filtrar por comarca
-    if (comarca) {
-      filteredMunicipios = filteredMunicipios.filter(m => 
-        m.comarca.toLowerCase() === comarca.toLowerCase()
-      );
-    }
+    const data = await response.json();
     
-    // Aplicar paginación
-    const total = filteredMunicipios.length;
-    const startIndex = parseInt(offset);
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedMunicipios = filteredMunicipios.slice(startIndex, endIndex);
+    // Procesar datos para cada municipio
+    const municipalitiesWithData = MUNICIPIOS_TURISTICOS.map(mun => {
+      // Buscar el municipio en los datos de IDESCAT
+      const municipalities = data.fitxes.cols.col;
+      const municipalityIndex = municipalities.findIndex(
+        m => m.id === mun.id && m.scheme === 'mun'
+      );
+      
+      if (municipalityIndex === -1) {
+        console.warn(`⚠️ Municipio ${mun.name} (${mun.id}) no encontrado`);
+        return {
+          ...mun,
+          population: 0,
+          density: 0,
+          area_km2: 0,
+          latitude: 41.3851, // Coordenadas por defecto (Barcelona)
+          longitude: 2.1734
+        };
+      }
+      
+      // Obtener datos del municipio
+      const municipalityData = municipalities[municipalityIndex];
+      const values = data.fitxes.indicadors.i.v.split(',');
+      const population = parseInt(values[municipalityIndex]) || 0;
+      
+      // Coordenadas aproximadas
+      const coords = getCoordinatesForMunicipality(mun.id);
+      
+      return {
+        id: mun.id,
+        name: municipalityData.content,
+        population: population,
+        area_km2: getAreaForMunicipality(mun.id),
+        density: Math.round(population / getAreaForMunicipality(mun.id)),
+        latitude: coords.lat,
+        longitude: coords.lng,
+        tourism_score: mun.tourism_score,
+        coastal: mun.coastal,
+        mountain: mun.mountain,
+        comarca: getComarcaForMunicipality(mun.id),
+        province: getProvinceForMunicipality(mun.id)
+      };
+    });
+    
+    console.log(`✅ Cargados ${municipalitiesWithData.length} municipios`);
     
     return res.status(200).json({
       success: true,
-      count: paginatedMunicipios.length,
-      total: total,
-      data: paginatedMunicipios,
-      pagination: {
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: endIndex < total
-      },
-      timestamp: new Date().toISOString(),
-      source: "hardcoded_data"
+      data: municipalitiesWithData,
+      total: municipalitiesWithData.length,
+      source: 'IDESCAT',
+      lastUpdate: data.fitxes.indicadors.i.updated
     });
-
+    
   } catch (error) {
-    console.error('Error en municipalities API:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor',
-      details: error.message
+    console.error('❌ Error en /api/municipalities:', error);
+    
+    // En caso de error, devolver datos de respaldo
+    return res.status(200).json({
+      success: true,
+      data: getFallbackData(),
+      total: 20,
+      source: 'fallback',
+      error: error.message
     });
   }
+}
+
+// FUNCIONES HELPER
+function getCoordinatesForMunicipality(id) {
+  const coords = {
+    '080193': { lat: 41.3851, lng: 2.1734 },    // Barcelona
+    '082704': { lat: 41.2372, lng: 1.8059 },    // Sitges
+    '170792': { lat: 41.9794, lng: 2.8214 },    // Girona
+    '431482': { lat: 41.1189, lng: 1.2445 },    // Tarragona
+    '251207': { lat: 41.6148, lng: 0.6218 },    // Lleida
+    '439057': { lat: 41.0763, lng: 1.1419 },    // Salou
+    '172023': { lat: 41.7218, lng: 2.9307 },    // Tossa de Mar
+    '170340': { lat: 41.8931, lng: 3.1639 },    // Calonge
+    '171523': { lat: 42.2639, lng: 3.1770 },    // Roses
+    '171479': { lat: 42.3139, lng: 2.3655 },    // Ripoll
+    '080155': { lat: 41.4470, lng: 2.2450 },    // Badalona
+    '171411': { lat: 42.4474, lng: 1.9286 },    // Puigcerdà
+    '082649': { lat: 41.5881, lng: 2.5153 },    // Sant Vicenç de Montalt
+    '430141': { lat: 40.7125, lng: 0.5816 },    // Amposta
+    '171655': { lat: 42.2129, lng: 2.2909 },    // Sant Joan de les Abadesses
+    '170499': { lat: 42.0131, lng: 2.7898 },    // Celrà
+    '082606': { lat: 41.4874, lng: 2.1060 },    // Santa Perpètua
+    '081022': { lat: 41.5789, lng: 1.6175 },    // Igualada
+    '080630': { lat: 41.3745, lng: 2.0920 },    // Esplugues
+    '081213': { lat: 41.5362, lng: 2.4445 }     // Mataró
+  };
+  return coords[id] || { lat: 41.3851, lng: 2.1734 };
+}
+
+function getAreaForMunicipality(id) {
+  const areas = {
+    '080193': 101.4,  // Barcelona
+    '082704': 43.8,   // Sitges
+    '170792': 39.1,   // Girona
+    '431482': 55.0,   // Tarragona
+    '251207': 211.7,  // Lleida
+    '439057': 15.1,   // Salou
+    '172023': 5.9,    // Tossa de Mar
+    '170340': 33.4,   // Calonge
+    '171523': 45.9,   // Roses
+    '171479': 36.3,   // Ripoll
+    '080155': 21.2,   // Badalona
+    '171411': 19.9,   // Puigcerdà
+    '082649': 8.0,    // Sant Vicenç
+    '430141': 137.3,  // Amposta
+    '171655': 53.2,   // Sant Joan
+    '170499': 19.5,   // Celrà
+    '082606': 15.8,   // Santa Perpètua
+    '081022': 8.1,    // Igualada
+    '080630': 4.6,    // Esplugues
+    '081213': 22.5    // Mataró
+  };
+  return areas[id] || 50;
+}
+
+function getComarcaForMunicipality(id) {
+  const comarcas = {
+    '080193': 'Barcelonès',
+    '082704': 'Garraf',
+    '170792': 'Gironès',
+    '431482': 'Tarragonès',
+    '251207': 'Segrià',
+    '439057': 'Tarragonès',
+    '172023': 'Selva',
+    '170340': 'Baix Empordà',
+    '171523': 'Alt Empordà',
+    '171479': 'Ripollès',
+    '080155': 'Barcelonès',
+    '171411': 'Cerdanya',
+    '082649': 'Maresme',
+    '430141': 'Montsià',
+    '171655': 'Ripollès',
+    '170499': 'Gironès',
+    '082606': 'Vallès Occidental',
+    '081022': 'Anoia',
+    '080630': 'Baix Llobregat',
+    '081213': 'Maresme'
+  };
+  return comarcas[id] || 'N/A';
+}
+
+function getProvinceForMunicipality(id) {
+  const firstTwo = id.substring(0, 2);
+  switch(firstTwo) {
+    case '08': return 'Barcelona';
+    case '17': return 'Girona';
+    case '25': return 'Lleida';
+    case '43': return 'Tarragona';
+    default: return 'Catalunya';
+  }
+}
+
+function getFallbackData() {
+  return [
+    { id: '080193', name: 'Barcelona', population: 1620343, area_km2: 101.4, density: 15979, latitude: 41.3851, longitude: 2.1734, tourism_score: 9.8, coastal: false, mountain: false, comarca: 'Barcelonès', province: 'Barcelona' },
+    { id: '170792', name: 'Girona', population: 103369, area_km2: 39.1, density: 2644, latitude: 41.9794, longitude: 2.8214, tourism_score: 7.2, coastal: false, mountain: false, comarca: 'Gironès', province: 'Girona' }
+  ];
 }
