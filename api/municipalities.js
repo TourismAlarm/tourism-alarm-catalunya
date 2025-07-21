@@ -211,4 +211,5 @@ function getFallbackData() {
     { id: '080193', name: 'Barcelona', population: 1620343, area_km2: 101.4, density: 15979, latitude: 41.3851, longitude: 2.1734, tourism_score: 9.8, coastal: false, mountain: false, comarca: 'Barcelonès', province: 'Barcelona' },
     { id: '170792', name: 'Girona', population: 103369, area_km2: 39.1, density: 2644, latitude: 41.9794, longitude: 2.8214, tourism_score: 7.2, coastal: false, mountain: false, comarca: 'Gironès', province: 'Girona' }
   ];
-}
+}/ /   F o r c e   r e d e p l o y   0 7 / 2 1 / 2 0 2 5   1 7 : 3 2 : 3 3  
+ 
