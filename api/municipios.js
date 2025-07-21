@@ -212,3 +212,5 @@ function getFallbackData() {
     { id: '170792', name: 'Girona', population: 103369, area_km2: 39.1, density: 2644, latitude: 41.9794, longitude: 2.8214, tourism_score: 7.2, coastal: false, mountain: false, comarca: 'Gironès', province: 'Girona' }
   ];
 }
+
+export default handler;
