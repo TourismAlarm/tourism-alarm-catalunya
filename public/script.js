@@ -89,7 +89,7 @@ console.log('🔌 Usando API:', this.apiBase);
     async loadMunicipalitiesData() {
         try {
             this.setApiStatus('connecting');
-            const response = await fetch(${this.apiBase}/municipalities);
+            const response = await fetch(${this.apiBase}/municipios);
             const result = await response.json();
             
             if (result.success && result.data) {
