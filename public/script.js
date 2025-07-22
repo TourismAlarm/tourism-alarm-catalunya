@@ -89,7 +89,7 @@ console.log('🔌 Usando API:', this.apiBase);
     async loadMunicipalitiesData() {
         try {
             this.setApiStatus('connecting');
-            const response = await fetch(${this.apiBase}/municipios);
+            const response = await fetch(`${this.apiBase}/municipios`);
             const result = await response.json();
             
             if (result.success && result.data) {
@@ -119,13 +119,20 @@ console.log('🔌 Usando API:', this.apiBase);
 
             const points = this.generateHeatmapPoints();
             
+            // *** GRADIENTE CORREGIDO ***
             this.heatmapLayer = L.heatLayer(points, {
                 radius: this.map.getZoom() > 10 ? 25 : 35,
                 blur: this.map.getZoom() > 10 ? 15 : 25,
                 maxZoom: 18,
-                max: 1.0,
-                minOpacity: 0.1,
-                gradient: this.getGradientForMetric(this.state.currentMetric)
+                max: 0.9,  // Cambiado de 1.0 a 0.9
+                minOpacity: 0.2,  // Cambiado de 0.1 a 0.2
+                gradient: {
+                    0.0: '#00ff00',  // Verde = Tranquilo
+                    0.3: '#80ff00',  
+                    0.5: '#ffff00',  // Amarillo = Moderado
+                    0.7: '#ff8000',  // Naranja = Alto  
+                    1.0: '#ff0000'   // Rojo = CRÍTICO (Barcelona debería estar aquí)
+                }
             }).addTo(this.map);
 
             if (this.map.getZoom() >= 8) this.addMunicipalityMarkers();
@@ -137,31 +144,89 @@ console.log('🔌 Usando API:', this.apiBase);
         }
     }
 
+    // *** FUNCIÓN CORREGIDA - generateHeatmapPoints() ***
     generateHeatmapPoints() {
-        const points = [];
+        console.log('🔄 Generando heatmap con algoritmo corregido...');
+        const puntosCorregidos = [];
+        
+        // Analizar datos actuales
+        this.allMunicipalities.forEach(m => {
+            if (m.visitants_anuals) {
+                console.log(`${m.name}: ${m.visitants_anuals?.toLocaleString()} turistas, ratio: ${m.ratio_turistes}, alert: ${m.alertLevel}`);
+            }
+        });
+        
         this.allMunicipalities.forEach(municipality => {
-            const realtimeData = this.calculateRealTimeData(municipality);
-            this.municipalitiesData[municipality.name] = realtimeData;
-            
-            let value = this.getMetricValue(municipality, realtimeData);
-            let intensity = this.normalizeIntensity(value);
-            
-            const numPoints = Math.max(3, Math.min(15, Math.floor((municipality.area_km2 || 50) / 10)));
-            const radius = Math.sqrt(municipality.area_km2 || 50) * 0.002;
-            
-            for (let i = 0; i < numPoints; i++) {
-                const angle = Math.random() * 2 * Math.PI;
-                const distance = Math.random() * radius;
-                const pointLat = municipality.latitude + Math.cos(angle) * distance;
-                const pointLng = municipality.longitude + Math.sin(angle) * distance;
+            if (municipality.latitude && municipality.longitude) {
+                // NUEVO ALGORITMO: Combinar volumen + ratio + alertLevel
+                let intensidadFinal = 0;
                 
-                if (this.isPointInCatalunya(pointLat, pointLng)) {
-                    const variation = 0.8 + Math.random() * 0.4;
-                    points.push([pointLat, pointLng, intensity * variation]);
+                // 1. Calcular datos en tiempo real si no existen
+                const realtimeData = this.calculateRealTimeData(municipality);
+                this.municipalitiesData[municipality.name] = realtimeData;
+                
+                // 2. Por alertLevel (más preciso)
+                const alertLevel = municipality.alertLevel || realtimeData.alertLevel || 'low';
+                if (alertLevel === 'critical') intensidadFinal = 1.0;
+                else if (alertLevel === 'high') intensidadFinal = 0.75;
+                else if (alertLevel === 'medium') intensidadFinal = 0.5;
+                else if (alertLevel === 'low') intensidadFinal = 0.25;
+                
+                // 3. Bonus por volumen absoluto de turistas (simulado si no existe)
+                const visitants = municipality.visitants_anuals || (municipality.population * (municipality.tourism_score || 5));
+                if (visitants >= 10000000) intensidadFinal = Math.min(1.0, intensidadFinal + 0.4); // Barcelona: 15M
+                else if (visitants >= 5000000) intensidadFinal = Math.min(1.0, intensidadFinal + 0.3);
+                else if (visitants >= 2000000) intensidadFinal = Math.min(1.0, intensidadFinal + 0.2);
+                else if (visitants >= 1000000) intensidadFinal = Math.min(1.0, intensidadFinal + 0.1);
+                
+                // 4. Boost especial para Barcelona
+                if (municipality.name === 'Barcelona') {
+                    intensidadFinal = Math.max(0.9, intensidadFinal);
+                }
+                
+                // 5. Determinar densidad de puntos
+                let densidadPuntos;
+                if (intensidadFinal >= 0.9) densidadPuntos = 100;  // Barcelona debería estar aquí
+                else if (intensidadFinal >= 0.7) densidadPuntos = 80;
+                else if (intensidadFinal >= 0.5) densidadPuntos = 60;
+                else if (intensidadFinal >= 0.3) densidadPuntos = 40;
+                else densidadPuntos = 20;
+                
+                console.log(`${municipality.name}: intensidad final ${intensidadFinal.toFixed(2)}, ${densidadPuntos} puntos`);
+                
+                // 6. Generar puntos con nueva intensidad
+                const radioKm = municipality.name === 'Barcelona' ? 0.08 : 0.04; // Barcelona más grande
+                const pasosGrid = Math.ceil(Math.sqrt(densidadPuntos));
+                
+                for (let i = 0; i < pasosGrid; i++) {
+                    for (let j = 0; j < pasosGrid; j++) {
+                        const offsetX = (i / pasosGrid - 0.5) * radioKm * 2;
+                        const offsetY = (j / pasosGrid - 0.5) * radioKm * 2;
+                        const ruido = (Math.random() - 0.5) * 0.01;
+                        
+                        const lat = municipality.latitude + offsetY + ruido;
+                        const lng = municipality.longitude + offsetX + ruido;
+                        
+                        // Verificar que está en Catalunya
+                        if (this.isPointInCatalunya(lat, lng)) {
+                            const distanciaCentro = Math.sqrt(offsetX*offsetX + offsetY*offsetY);
+                            const factorDistancia = Math.max(0.4, 1 - (distanciaCentro / radioKm));
+                            const variacion = 0.8 + Math.random() * 0.4;
+                            
+                            const intensidad = intensidadFinal * factorDistancia * variacion;
+                            
+                            if (intensidad > 0.1) {
+                                puntosCorregidos.push([lat, lng, intensidad]);
+                            }
+                        }
+                    }
                 }
             }
         });
-        return points;
+        
+        console.log(`✅ Heatmap CORREGIDO con ${puntosCorregidos.length} puntos`);
+        console.log('🏙️ Barcelona ahora debería aparecer en ROJO');
+        return puntosCorregidos;
     }
 
     getMetricValue(municipality, realtimeData) {
@@ -178,38 +243,27 @@ console.log('🔌 Usando API:', this.apiBase);
             case 'sustainability': return (10 - value) / 10;
             case 'population': return Math.min(1.0, Math.log10((value || 1) + 1) / 4);
             case 'tourism_potential': return (value || 5) / 10;
-            default: return (value || 50) / 100;
+            default: return (value || 0) / 100;
         }
     }
 
     calculateRealTimeData(municipality) {
         const hour = new Date().getHours();
-        const day = new Date().getDay();
-        let baseDensity = (municipality.tourism_score || 5) * 8;
+        const isWeekend = [0, 6].includes(new Date().getDay());
+        const baseDensity = (municipality.tourism_score || 5) * 10;
         
-        if (hour >= 10 && hour <= 14) baseDensity *= 1.3;
-        else if (hour >= 18 && hour <= 22) baseDensity *= 1.2;
-        else if (hour >= 6 && hour <= 9) baseDensity *= 0.8;
-        else baseDensity *= 0.4;
+        const timeMultiplier = hour < 8 ? 0.3 : hour < 12 ? 0.7 : hour < 20 ? 1.2 : 0.8;
+        const weekendMultiplier = isWeekend ? 1.4 : 1.0;
+        const seasonMultiplier = [12, 1, 2].includes(new Date().getMonth()) ? 0.7 : 
+                                [6, 7, 8].includes(new Date().getMonth()) ? 1.3 : 1.0;
         
-        if (day === 0 || day === 6) baseDensity *= 1.4;
-        else if (day === 5) baseDensity *= 1.2;
-        else baseDensity *= 0.9;
-        
-        if (municipality.coastal) baseDensity *= 1.2;
-        if (municipality.mountain) baseDensity *= 0.9;
-        if ((municipality.population || 0) > 100000) baseDensity *= 1.1;
-        
-        baseDensity += (Math.random() - 0.5) * 12;
-        baseDensity = Math.max(5, Math.min(98, baseDensity));
-        
-        const sustainability = Math.max(1.0, Math.min(10.0, 8.0 - (baseDensity - 50) / 25));
+        const finalDensity = baseDensity * timeMultiplier * weekendMultiplier * seasonMultiplier;
         
         return {
-            density: Math.round(baseDensity),
-            sustainability: Math.round(sustainability * 10) / 10,
-            temperature: 15 + Math.random() * 15,
-            status: baseDensity > 85 ? 'CRÍTICO' : baseDensity > 70 ? 'ALTO' : 'NORMAL',
+            density: Math.round(finalDensity),
+            sustainability: Math.max(1, 10 - finalDensity / 10),
+            alertLevel: finalDensity > 90 ? 'critical' : finalDensity > 70 ? 'high' : finalDensity > 40 ? 'medium' : 'low',
+            statusText: finalDensity > 90 ? 'CRÍTICO' : finalDensity > 70 ? 'ALTO' : 'NORMAL',
             timestamp: Date.now()
         };
     }
@@ -281,25 +335,25 @@ console.log('🔌 Usando API:', this.apiBase);
         setInterval(() => this.checkApiHealth(), 300000);
     }
 
-async checkApiHealth() {
-    try {
-        // Añadir un timeout para no esperar mucho si la API local no responde
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
-        const response = await fetch(`${this.apiBase}/health`, {
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.ok) this.setApiStatus('online');
-        else this.setApiStatus('offline');
-    } catch (error) {
-        console.warn('API no disponible, usando modo offline');
-        this.setApiStatus('offline');
+    async checkApiHealth() {
+        try {
+            // Añadir un timeout para no esperar mucho si la API local no responde
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(`${this.apiBase}/health`, {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) this.setApiStatus('online');
+            else this.setApiStatus('offline');
+        } catch (error) {
+            console.warn('API no disponible, usando modo offline');
+            this.setApiStatus('offline');
+        }
     }
-}
 
     setApiStatus(status) {
         this.state.apiStatus = status;
@@ -352,7 +406,8 @@ async checkApiHealth() {
     getFallbackData() {
         return [
             { id: '080193', name: 'Barcelona', population: 1620343, area_km2: 101.4, density: 15979, latitude: 41.3851, longitude: 2.1734, tourism_score: 9.8, coastal: false, mountain: false, comarca: 'Barcelonès', province: 'Barcelona' },
-            { id: '170079', name: 'Girona', population: 103369, area_km2: 39.1, density: 2644, latitude: 41.9794, longitude: 2.8214, tourism_score: 7.2, coastal: false, mountain: false, comarca: 'Gironès', province: 'Girona' }
+            { id: '082704', name: 'Sitges', population: 29160, area_km2: 43.9, density: 664, latitude: 41.2372, longitude: 1.8059, tourism_score: 8.5, coastal: true, mountain: false, comarca: 'Garraf', province: 'Barcelona' },
+            { id: '170792', name: 'Girona', population: 103369, area_km2: 39.1, density: 2644, latitude: 41.9794, longitude: 2.8214, tourism_score: 7.2, coastal: false, mountain: false, comarca: 'Gironès', province: 'Girona' }
         ];
     }
 
@@ -378,7 +433,6 @@ async checkApiHealth() {
     }
 
     handleSearch() {
-        // Implementación básica de búsqueda
         console.log('Search functionality - to be implemented');
     }
 
@@ -388,7 +442,6 @@ async checkApiHealth() {
     }
 
     addMunicipalityMarkers() {
-        // Implementación básica de marcadores
         console.log('Municipality markers - to be implemented');
     }
 }
