@@ -3,7 +3,7 @@
 // Updated: 23-07-2025 - FIXED VERSION
 
 // IMPORTAR BASE DE DATOS COMPLETA DE 947 MUNICIPIOS
-const CATALUNYA_COORDINATES = {
+import { CATALUNYA_COORDINATES } from './catalunya-coordinates-947.js';
   // BARCELONA (311 municipios)
   '080193': [41.3851, 2.1734], // Barcelona
   '080155': [41.4470, 2.2450], // Badalona
