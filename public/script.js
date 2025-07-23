@@ -107,7 +107,7 @@ class TourismAlarmApp {
             console.log('🔄 Cargando datos de municipios...');
             this.setApiStatus('connecting');
             
-            const response = await fetch(`${this.apiBase}/municipalities`);
+            const response = await fetch(`${this.apiBase}/municipalities?Limit=947`);
             const result = await response.json();
             
             if (!result.success || !result.data) {
