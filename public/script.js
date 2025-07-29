@@ -143,77 +143,98 @@ class TourismAlarmApp {
         }
     }
 
-    async createHeatmap() {
-        if (!this.allMunicipalities || this.allMunicipalities.length === 0) {
-            console.warn('⚠️ No hay datos para crear heatmap');
-            return;
-        }
+   async createHeatmap() {
+    if (!this.allMunicipalities || this.allMunicipalities.length === 0) {
+        console.warn('⚠️ No hay datos para crear heatmap');
+        return;
+    }
 
-        try {
-            console.log('🔥 Creando heatmap...');
-            
-            // Limpiar eventos anteriores
-            this.map.off('zoomend');
-            
-            // Remover heatmap anterior
-            if (this.heatmapLayer) {
-                this.map.removeLayer(this.heatmapLayer);
-            }
-            
-            // Generar puntos para heatmap
-            const puntos = [];
-            
-            this.allMunicipalities.forEach(m => {
-                if (m.latitude && m.longitude) {
-                    // Calcular intensidad
-                    let intensidad = 0;
-                    if (m.alertLevel === 'critical') intensidad = 1.0;
-                    else if (m.alertLevel === 'high') intensidad = 0.75;
-                    else if (m.alertLevel === 'medium') intensidad = 0.5;
-                    else intensidad = 0.25;
+    try {
+        console.log('🔥 Creando heatmap...');
+        
+        // Limpiar eventos anteriores
+        this.map.off('zoomend');
+        
+        // Remover heatmap anterior
+        if (this.heatmapLayer) {
+            this.map.removeLayer(this.heatmapLayer);
+        }
+        
+        // SOLUCIÓN: Usar SOLO coordenadas válidas de municipios (sin aleatorias)
+        const puntos = [];
+        
+        this.allMunicipalities.forEach(m => {
+            if (m.latitude && m.longitude) {
+                // Validación CRÍTICA: Solo coordenadas dentro de Catalunya
+                if (m.latitude >= 40.5 && m.latitude <= 42.9 && 
+                    m.longitude >= 0.1 && m.longitude <= 3.4) {
                     
-                    // Bonus por volumen de turistas
-                    if (m.visitants_anuals >= 10000000) intensidad = Math.min(1.0, intensidad + 0.4);
-                    else if (m.visitants_anuals >= 2000000) intensidad = Math.min(1.0, intensidad + 0.2);
-                    else if (m.visitants_anuals >= 1000000) intensidad = Math.min(1.0, intensidad + 0.1);
+                    // Calcular intensidad basada en datos del municipio
+                    let intensidad = 0.3; // Base
                     
-                    // Generar múltiples puntos por municipio
-                    const numPuntos = Math.floor(intensidad * 50) + 10;
+                    // Intensidad por tourism_score del API
+                    if (m.tourism_score) {
+                        intensidad = Math.min(1.0, m.tourism_score / 100);
+                    }
+                    
+                    // Intensidad por densidad
+                    if (m.density) {
+                        intensidad += Math.min(0.3, m.density / 1000);
+                    }
+                    
+                    // FIXED: Solo 3-5 puntos cerca del centro del municipio (no aleatorios)
+                    const numPuntos = 4; // Fijo para consistencia
+                    
                     for (let i = 0; i < numPuntos; i++) {
-                        const lat = m.latitude + (Math.random() - 0.5) * 0.08;
-                        const lng = m.longitude + (Math.random() - 0.5) * 0.08;
-                        const variacion = 0.8 + Math.random() * 0.4;
-                        puntos.push([lat, lng, intensidad * variacion]);
+                        // Micro-variación MÍNIMA (solo 0.01 grados = ~1km)
+                        const latOffset = (Math.random() - 0.5) * 0.01;
+                        const lngOffset = (Math.random() - 0.5) * 0.01;
+                        
+                        const finalLat = m.latitude + latOffset;
+                        const finalLng = m.longitude + lngOffset;
+                        
+                        // Validación final: asegurar que sigue dentro de Catalunya
+                        if (finalLat >= 40.5 && finalLat <= 42.9 && 
+                            finalLng >= 0.1 && finalLng <= 3.4) {
+                            
+                            puntos.push([
+                                finalLat, 
+                                finalLng, 
+                                Math.min(1.0, intensidad)
+                            ]);
+                        }
                     }
                 }
-            });
-            
-            console.log(`🗺️ Generando heatmap con ${puntos.length} puntos`);
-            
-            // Crear heatmap
-            this.heatmapLayer = L.heatLayer(puntos, {
-                radius: 35,
-                blur: 25,
-                maxZoom: 18,
-                max: 0.9,
-                minOpacity: 0.2,
-                gradient: {
-                    0.0: '#00ff00',  // Verde
-                    0.3: '#80ff00',  
-                    0.5: '#ffff00',  // Amarillo
-                    0.7: '#ff8000',  // Naranja
-                    1.0: '#ff0000'   // Rojo
-                }
-            }).addTo(this.map);
-            
-            console.log('✅ Heatmap creado correctamente');
-            this.updateStats();
-            
-        } catch (error) {
-            console.error('❌ Error creating heatmap:', error);
-            this.showError('Error creando heatmap: ' + error.message);
-        }
+            }
+        });
+        
+        console.log(`🗺️ Generando heatmap con ${puntos.length} puntos VALIDADOS`);
+        
+        // Crear heatmap con configuración optimizada
+        this.heatmapLayer = L.heatLayer(puntos, {
+            radius: 25,        // Reducido para mayor precisión
+            blur: 15,          // Reducido para menos difusión
+            maxZoom: 18,
+            max: 1.0,
+            minOpacity: 0.3,
+            gradient: {
+                0.0: 'rgba(0,100,0,0)',      // Verde transparente
+                0.2: 'rgba(0,255,0,0.4)',    // Verde
+                0.4: 'rgba(255,255,0,0.6)',  // Amarillo  
+                0.6: 'rgba(255,165,0,0.8)',  // Naranja
+                0.8: 'rgba(255,100,0,0.9)',  // Rojo-naranja
+                1.0: 'rgba(255,0,0,1.0)'     // Rojo
+            }
+        }).addTo(this.map);
+        
+        console.log('✅ Heatmap creado correctamente SIN puntos fuera de Catalunya');
+        this.updateStats();
+        
+    } catch (error) {
+        console.error('❌ Error creating heatmap:', error);
+        this.showError('Error creando heatmap: ' + error.message);
     }
+}
 
     // Funciones auxiliares
     setApiStatus(status) {
