@@ -212,11 +212,12 @@ class TourismAlarmApp {
         
         // Crear heatmap con configuración optimizada
         this.heatmapLayer = L.heatLayer(puntos, {
-            radius: 25,        // Reducido para mayor precisión
-            blur: 15,          // Reducido para menos difusión
-            maxZoom: 18,
-            max: 1.0,
-            minOpacity: 0.3,
+    radius: 8,         // ← REDUCIDO drasticamente
+    blur: 5,           // ← REDUCIDO drasticamente
+    maxZoom: 12,       // ← LIMITADO para evitar zoom out extremo
+    minZoom: 7,        // ← LIMITADO para evitar zoom in extremo
+    max: 1.0,
+    minOpacity: 0.5,
             gradient: {
                 0.0: 'rgba(0,100,0,0)',      // Verde transparente
                 0.2: 'rgba(0,255,0,0.4)',    // Verde
