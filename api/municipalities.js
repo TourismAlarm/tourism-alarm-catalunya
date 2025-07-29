@@ -102,12 +102,47 @@ class ScalableMunicipalitiesGenerator {
     return { lat, lng };
   }
 
-  // Validar que las coordenadas están dentro de los límites de la región
-  isWithinRegionBounds(lat, lng) {
-    const bounds = this.config.bounds;
-    return lat >= bounds.minLat && lat <= bounds.maxLat &&
-           lng >= bounds.minLng && lng <= bounds.maxLng;
+// Validar que las coordenadas están dentro de los límites de la región
+isWithinRegionBounds(lat, lng) {
+  // Bounds básicos primero (optimización)
+  const bounds = this.config.bounds;
+  if (!(lat >= bounds.minLat && lat <= bounds.maxLat &&
+        lng >= bounds.minLng && lng <= bounds.maxLng)) {
+    return false;
   }
+  
+  // VALIDACIÓN CRÍTICA: Polígono preciso de Catalunya
+  const CATALUNYA_POLYGON = [
+    [42.86, 3.33], [42.79, 3.17], [42.52, 3.15], [42.47, 2.87],
+    [42.31, 2.31], [42.39, 1.73], [42.52, 1.74], [42.60, 1.45],
+    [42.59, 0.73], [42.52, 0.15], [41.75, 0.15], [41.59, 0.22],
+    [40.98, 0.32], [40.52, 0.87], [40.52, 1.58], [40.76, 2.82],
+    [41.06, 3.33], [42.86, 3.33]
+  ];
+  
+  // Algoritmo ray-casting para validación poligonal
+  let inside = false;
+  for (let i = 0, j = CATALUNYA_POLYGON.length - 1; i < CATALUNYA_POLYGON.length; j = i++) {
+    const [xi, yi] = CATALUNYA_POLYGON[i];
+    const [xj, yj] = CATALUNYA_POLYGON[j];
+    
+    if (((yi > lng) !== (yj > lng)) && 
+        (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  
+  // Validación adicional: no está en zonas problemáticas
+  if (inside) {
+    // Evitar zona marina del Mediterráneo
+    if (lng > 3.0 && lat > 40.5 && lat < 42.5) return false;
+    
+    // Evitar zona frontera Francia
+    if (lat > 42.7 && lng > 1.5 && lng < 3.0) return false;
+  }
+  
+  return inside;
+}
 
   // Generar distribución normal (Gaussiana) para coordenadas más realistas
   gaussianRandom() {
