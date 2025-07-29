@@ -211,7 +211,6 @@ class TourismAlarmApp {
         console.log(`🗺️ Generando heatmap con ${puntos.length} puntos VALIDADOS`);
         
         // Crear heatmap con configuración optimizada
-        this.heatmapLayer = L.heatLayer(puntos, {
     this.heatmapLayer = L.heatLayer(puntos, {
     radius: 30,        // Aumentado para visibilidad óptima
     blur: 20,          // Difuminado suave y visible
