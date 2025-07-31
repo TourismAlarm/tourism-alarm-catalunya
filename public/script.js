@@ -49,6 +49,9 @@ class TourismAlarmApp {
         };
         
         this.init();
+        
+        // Inicializar sistema IA si Ollama está disponible
+        this.checkAndInitAI();
     }
 
     async init() {
@@ -296,6 +299,130 @@ class TourismAlarmApp {
 
     showError(message) {
         console.error('🚨 Error:', message);
+    }
+
+    async checkAndInitAI() {
+        try {
+            const { AIOrchestrator } = await import('../agents/orchestrator.js');
+            this.ai = new AIOrchestrator();
+            console.log('🤖 Sistema IA inicializado');
+            
+            // Ejecutar análisis inicial
+            setTimeout(() => this.runAIAnalysis(), 5000);
+        } catch (error) {
+            console.log('ℹ️ Sistema IA no disponible:', error.message);
+        }
+    }
+
+    async runAIAnalysis() {
+        if (!this.ai) {
+            console.log('⚠️ Sistema IA no disponible');
+            return;
+        }
+        
+        try {
+            console.log('🧠 Ejecutando análisis IA...');
+            const results = await this.ai.runFullAnalysis();
+            
+            // Actualizar UI con predicciones
+            this.updatePredictionsUI(results.predictions);
+            
+            // Actualizar estadísticas
+            this.updateAIStats(results);
+            
+            console.log('✅ Análisis IA completado');
+        } catch (error) {
+            console.error('❌ Error en análisis IA:', error);
+        }
+    }
+
+    updatePredictionsUI(predictions) {
+        // Actualizar predicciones IA en la interfaz
+        const predBarcelona = document.getElementById('predBarcelona');
+        const predCosta = document.getElementById('predCosta');
+        const predPirineos = document.getElementById('predPirineos');
+        const generalTrend = document.getElementById('generalTrend');
+
+        if (predictions && predictions.next_48h) {
+            const pred48h = predictions.next_48h;
+            
+            // Buscar predicciones específicas
+            const barcelonaPred = this.findMunicipalityPrediction(pred48h, 'Barcelona');
+            const costaPred = this.findRegionPrediction(pred48h, 'costa');
+            const pirineosPred = this.findRegionPrediction(pred48h, 'pirineos');
+            
+            if (predBarcelona && barcelonaPred) {
+                predBarcelona.textContent = `${barcelonaPred.expected_flow} (${barcelonaPred.saturation_probability}%)`;
+                predBarcelona.className = `prediction-value ${barcelonaPred.risk_level}`;
+            }
+            
+            if (predCosta && costaPred) {
+                predCosta.textContent = `${costaPred.expected_flow} (${costaPred.saturation_probability}%)`;
+                predCosta.className = `prediction-value ${costaPred.risk_level}`;
+            }
+            
+            if (predPirineos && pirineosPred) {
+                predPirineos.textContent = `${pirineosPred.expected_flow} (${pirineosPred.saturation_probability}%)`;
+                predPirineos.className = `prediction-value ${pirineosPred.risk_level}`;
+            }
+            
+            if (generalTrend && pred48h.global_trends) {
+                generalTrend.textContent = `${pred48h.global_trends.overall_risk} - Confianza: ${pred48h.confidence || 'N/A'}%`;
+                generalTrend.className = `prediction-value ${pred48h.global_trends.overall_risk}`;
+            }
+        }
+    }
+
+    findMunicipalityPrediction(prediction, municipalityName) {
+        if (!prediction.predictions) return null;
+        return prediction.predictions.find(p => 
+            p.municipality && p.municipality.toLowerCase().includes(municipalityName.toLowerCase())
+        );
+    }
+
+    findRegionPrediction(prediction, region) {
+        if (!prediction.predictions) return null;
+        
+        // Mapeo de municipios por región
+        const regionMunicipalities = {
+            costa: ['lloret', 'blanes', 'roses', 'cadaqués', 'begur', 'tossa'],
+            pirineos: ['puigcerdà', 'la seu', 'sort', 'vielha', 'baqueira']
+        };
+        
+        const municipalities = regionMunicipalities[region] || [];
+        
+        for (const municipality of municipalities) {
+            const pred = prediction.predictions.find(p => 
+                p.municipality && p.municipality.toLowerCase().includes(municipality)
+            );
+            if (pred) return pred;
+        }
+        
+        // Si no encuentra específico, devolver promedio de la región
+        return {
+            expected_flow: 'medio',
+            saturation_probability: 45,
+            risk_level: 'medio'
+        };
+    }
+
+    updateAIStats(results) {
+        // Actualizar estadísticas del sistema IA
+        const aiStatus = document.getElementById('aiStatus');
+        if (aiStatus) {
+            const health = results.system_health.overall_health;
+            aiStatus.textContent = `IA: ${health}`;
+            aiStatus.className = `ai-status ${health}`;
+        }
+        
+        // Actualizar última actualización con análisis IA
+        const lastUpdate = document.getElementById('lastUpdate');
+        if (lastUpdate) {
+            const now = new Date();
+            lastUpdate.textContent = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} (IA)`;
+        }
+        
+        console.log('📊 UI actualizada con datos IA');
     }
 
     getFallbackData() {

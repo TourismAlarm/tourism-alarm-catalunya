@@ -8,6 +8,26 @@
     box-sizing: border-box;
 }
 
+/* =================================================================
+   ESTILOS IA - PREDICCIONES Y ESTADO
+   ================================================================= */
+
+.prediction-value {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.prediction-value.critical { color: #ff0000; }
+.prediction-value.high { color: #ff6600; }
+.prediction-value.medium { color: #ffaa00; }
+.prediction-value.low { color: #00aa00; }
+
+.ai-status {
+    font-size: 12px;
+    margin-left: 10px;
+}
+
 :root {
     --primary-color: #1e3c72;
     --secondary-color: #2a5298;
