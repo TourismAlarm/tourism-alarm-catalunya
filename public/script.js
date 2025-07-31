@@ -180,10 +180,15 @@ class TourismAlarmApp {
                     // Generar múltiples puntos por municipio
                     const numPuntos = Math.floor(intensidad * 50) + 10;
                     for (let i = 0; i < numPuntos; i++) {
-                        const lat = m.latitude + (Math.random() - 0.5) * 0.08;
-                        const lng = m.longitude + (Math.random() - 0.5) * 0.08;
-                        const variacion = 0.8 + Math.random() * 0.4;
-                        puntos.push([lat, lng, intensidad * variacion]);
+                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.08;
+                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.08;
+                        
+                        // Límites más estrictos
+                        if (finalLat >= 40.52 && finalLat <= 42.86 && 
+                            finalLng >= 0.16 && finalLng <= 3.32) {
+                            const variacion = 0.8 + Math.random() * 0.4;
+                            puntos.push([finalLat, finalLng, intensidad * variacion]);
+                        }
                     }
                 }
             });
@@ -192,11 +197,11 @@ class TourismAlarmApp {
             
             // Crear heatmap
             this.heatmapLayer = L.heatLayer(puntos, {
-                radius: 35,
-                blur: 25,
-                maxZoom: 18,
+                radius: this.map.getZoom() < 10 ? 35 : 25,
+                blur: this.map.getZoom() < 10 ? 25 : 15,
+                minOpacity: 0.1,
+                maxZoom: 16,
                 max: 0.9,
-                minOpacity: 0.2,
                 gradient: {
                     0.0: '#00ff00',  // Verde
                     0.3: '#80ff00',  
@@ -207,6 +212,17 @@ class TourismAlarmApp {
             }).addTo(this.map);
             
             console.log('✅ Heatmap creado correctamente');
+            
+            // Ocultar heatmap cuando zoom < 7
+            this.map.on('zoomend', () => {
+                const zoom = this.map.getZoom();
+                if (zoom < 7) {
+                    this.map.removeLayer(this.heatmapLayer);
+                } else if (!this.map.hasLayer(this.heatmapLayer)) {
+                    this.heatmapLayer.addTo(this.map);
+                }
+            });
+            
             this.updateStats();
             
         } catch (error) {
