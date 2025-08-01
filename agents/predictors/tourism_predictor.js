@@ -1,4 +1,5 @@
 import { Ollama } from '@langchain/community/llms/ollama';
+import { APIConnector } from '../connectors/api_connector.js';
 
 export class TourismPredictorAgent {
     constructor() {
@@ -8,21 +9,33 @@ export class TourismPredictorAgent {
         });
         this.predictions = [];
         this.modelAccuracy = 0.85;
-        console.log('🔮 Agente Predictor iniciado');
+        this.apiConnector = new APIConnector();
+        console.log('🔮 Agente Predictor iniciado con datos meteorológicos y eventos');
     }
 
     async predictTourismFlow(historicalData, timeframe = '24h') {
-        const prompt = `Basándote en estos datos históricos de turismo, predice el flujo turístico para las próximas ${timeframe}:
+        // Obtener datos meteorológicos y de eventos actuales para mejorar predicciones
+        const externalData = await this.gatherExternalData(historicalData);
+        
+        const prompt = `Basándote en estos datos históricos de turismo y datos externos actuales, predice el flujo turístico para las próximas ${timeframe}:
         
         Datos históricos:
         ${JSON.stringify(historicalData.slice(-50))}
+        
+        Datos meteorológicos actuales:
+        ${JSON.stringify(externalData.weather)}
+        
+        Eventos programados:
+        ${JSON.stringify(externalData.events)}
         
         Considera:
         1. Tendencias estacionales
         2. Patrones de fin de semana vs días laborables
         3. Eventos especiales o festividades
-        4. Condiciones meteorológicas típicas
+        4. Condiciones meteorológicas actuales y su impacto
         5. Capacidad de saturación por municipio
+        6. Multiplicadores por clima favorable/desfavorable
+        7. Impacto de eventos masivos programados
         
         Genera predicciones para:
         - Flujo esperado (bajo/medio/alto/crítico)
@@ -157,6 +170,35 @@ export class TourismPredictorAgent {
 
     getAccuracy() {
         return this.modelAccuracy;
+    }
+
+    async gatherExternalData(historicalData) {
+        const externalData = {
+            weather: {},
+            events: {}
+        };
+
+        // Obtener datos meteorológicos para las principales ciudades turísticas
+        const majorCities = [
+            { name: 'Barcelona', lat: 41.3851, lon: 2.1734 },
+            { name: 'Girona', lat: 41.9794, lon: 2.8214 },
+            { name: 'Tarragona', lat: 41.1189, lon: 1.2445 },
+            { name: 'Lleida', lat: 41.6176, lon: 0.6200 }
+        ];
+
+        for (const city of majorCities) {
+            try {
+                const weather = await this.apiConnector.getWeatherData(city.lat, city.lon);
+                const events = await this.apiConnector.getEventsData(city.name);
+                
+                externalData.weather[city.name] = weather;
+                externalData.events[city.name] = events;
+            } catch (error) {
+                console.warn(`No se pudieron obtener datos externos para ${city.name}:`, error);
+            }
+        }
+
+        return externalData;
     }
 
     getPredictionHistory() {
