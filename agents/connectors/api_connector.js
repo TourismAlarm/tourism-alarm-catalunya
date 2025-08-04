@@ -87,10 +87,48 @@ export class APIConnector {
         return 1.0;
     }
 
+    async getTrafficData(lat, lon) {
+        const cached = this.getCached(`traffic_${lat}_${lon}`);
+        if (cached) return cached;
+
+        try {
+            const response = await fetch(
+                `${this.apis.traffic.url}/absolute/10/json?point=${lat},${lon}&key=${this.apis.traffic.key}`
+            );
+            const data = await response.json();
+            
+            if (data.flowSegmentData) {
+                const traffic = data.flowSegmentData;
+                const trafficInfo = {
+                    currentSpeed: traffic.currentSpeed,
+                    freeFlowSpeed: traffic.freeFlowSpeed,
+                    congestionRatio: traffic.currentSpeed / traffic.freeFlowSpeed,
+                    roadClosure: traffic.roadClosure,
+                    travelTime: traffic.currentTravelTime,
+                    tourism_impact: this.calculateTrafficImpact(traffic)
+                };
+                
+                this.setCache(`traffic_${lat}_${lon}`, trafficInfo);
+                return trafficInfo;
+            }
+        } catch (error) {
+            console.error('Error fetching traffic:', error);
+            return null;
+        }
+    }
+
     calculateEventImpact(events) {
         const count = events._embedded?.events?.length || 0;
         if (count > 10) return 1.5; // Muchos eventos = más turismo
         if (count > 5) return 1.2;
+        return 1.0;
+    }
+
+    calculateTrafficImpact(traffic) {
+        // Menos tráfico = más atractivo para turistas
+        const congestionRatio = traffic.currentSpeed / traffic.freeFlowSpeed;
+        if (congestionRatio > 0.8) return 1.1; // Tráfico fluido = más turismo
+        if (congestionRatio < 0.5) return 0.8; // Mucho tráfico = menos turismo
         return 1.0;
     }
 

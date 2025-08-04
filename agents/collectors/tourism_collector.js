@@ -22,8 +22,9 @@ export class TourismCollectorAgent {
         Datos del municipio: ${JSON.stringify(municipalityData)}
         Datos meteorológicos: ${JSON.stringify(enrichedData.weather)}
         Eventos locales: ${JSON.stringify(enrichedData.events)}
+        Datos de tráfico: ${JSON.stringify(enrichedData.traffic)}
         
-        Considera el impacto del clima y eventos en el turismo.
+        Considera el impacto del clima, eventos y tráfico en el turismo.
         
         Responde en JSON con: 
         {
@@ -31,6 +32,7 @@ export class TourismCollectorAgent {
             "risk_level": "bajo/medio/alto/crítico",
             "weather_impact": "descripción del impacto climático",
             "events_impact": "descripción del impacto de eventos",
+            "traffic_impact": "descripción del impacto del tráfico",
             "recommendations": ["recomendación1", "recomendación2"],
             "tourism_multiplier": número_del_1.0_al_2.0
         }`;
@@ -56,6 +58,14 @@ export class TourismCollectorAgent {
         // Obtener datos de eventos
         if (municipalityData.name) {
             enriched.events = await this.apiConnector.getEventsData(municipalityData.name);
+        }
+
+        // Obtener datos de tráfico
+        if (municipalityData.latitude && municipalityData.longitude) {
+            enriched.traffic = await this.apiConnector.getTrafficData(
+                municipalityData.latitude, 
+                municipalityData.longitude
+            );
         }
 
         return enriched;

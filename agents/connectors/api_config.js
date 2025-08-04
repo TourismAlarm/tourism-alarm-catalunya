@@ -2,15 +2,15 @@
 export const API_CONFIG = {
     // OpenWeatherMap - GRATIS hasta 1000 llamadas/día
     // Regístrate en: https://openweathermap.org/api
-    OPENWEATHER_API_KEY: process.env.OPENWEATHER_API_KEY || 'TU_API_KEY_AQUI',
+    OPENWEATHER_API_KEY: process.env.OPENWEATHER_API_KEY || 'afbc45948194541f2328d1b4eae4fe1b',
     
     // Ticketmaster - GRATIS hasta 5000 llamadas/día  
     // Regístrate en: https://developer.ticketmaster.com/
-    TICKETMASTER_API_KEY: process.env.TICKETMASTER_API_KEY || 'TU_API_KEY_AQUI',
+    TICKETMASTER_API_KEY: process.env.TICKETMASTER_API_KEY || 'wQKYjeWV4fqmiaAdmZcPR2XGpiwMpHoZ',
     
     // TomTom Traffic - GRATIS hasta 2500 llamadas/día
     // Regístrate en: https://developer.tomtom.com/
-    TOMTOM_API_KEY: process.env.TOMTOM_API_KEY || 'TU_API_KEY_AQUI',
+    TOMTOM_API_KEY: process.env.TOMTOM_API_KEY || 'U0o1BJrCRV0z8FiWyesQoBY5ta7sVVnr',
     
     // Configuración de cache (en minutos)
     CACHE_DURATION: {
