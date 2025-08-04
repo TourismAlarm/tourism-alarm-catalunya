@@ -17,14 +17,28 @@ export class TourismCollectorAgent {
         // Enriquecer datos con información externa
         const enrichedData = await this.enrichMunicipalityData(municipalityData);
         
-        const prompt = `Analiza estos datos turísticos enriquecidos y extrae patrones:
+        // Obtener ventana temporal de predicción
+        const predictionWindow = municipalityData.prediction_window || '48';
+        const timeLabels = {
+            '24': 'próximas 24 horas',
+            '48': 'próximas 48 horas',
+            '168': 'próxima semana'
+        };
+        const timeframe = timeLabels[predictionWindow] || 'próximas 48 horas';
+        
+        const prompt = `Analiza estos datos turísticos enriquecidos y extrae patrones para ${timeframe}:
         
         Datos del municipio: ${JSON.stringify(municipalityData)}
         Datos meteorológicos: ${JSON.stringify(enrichedData.weather)}
         Eventos locales: ${JSON.stringify(enrichedData.events)}
         Datos de tráfico: ${JSON.stringify(enrichedData.traffic)}
+        Ventana temporal: ${timeframe}
         
-        Considera el impacto del clima, eventos y tráfico en el turismo.
+        Considera el impacto del clima, eventos y tráfico en el turismo para ${timeframe}.
+        Ajusta las predicciones según el plazo temporal:
+        - 24h: Condiciones actuales tienen mayor peso
+        - 48h: Balance entre condiciones actuales y tendencias
+        - 1 semana: Tendencias generales tienen mayor peso
         
         Responde en JSON con: 
         {
@@ -34,7 +48,8 @@ export class TourismCollectorAgent {
             "events_impact": "descripción del impacto de eventos",
             "traffic_impact": "descripción del impacto del tráfico",
             "recommendations": ["recomendación1", "recomendación2"],
-            "tourism_multiplier": número_del_1.0_al_2.0
+            "tourism_multiplier": número_del_1.0_al_2.0,
+            "prediction_timeframe": "${timeframe}"
         }`;
         
         return await this.llm.call(prompt);

@@ -72,3 +72,35 @@ app.get('/api/test-error', (req, res, next) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
+
+// ENDPOINT DE ANÁLISIS IA PARA HEATMAP
+app.post('/api/ai-analysis', async (req, res) => {
+  try {
+    console.log('🤖 Análisis IA solicitado para:', req.body.name);
+    
+    // Importar agente collector
+    const { TourismCollectorAgent } = await import('../agents/collectors/tourism_collector.js');
+    const collector = new TourismCollectorAgent();
+    
+    // Ejecutar análisis completo
+    const aiAnalysis = await collector.analyzeMunicipality(req.body);
+    
+    // Parsear el resultado JSON
+    const parsed = JSON.parse(aiAnalysis);
+    
+    res.json({
+      success: true,
+      data: parsed,
+      municipality: req.body.name,
+      timestamp: new Date()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en análisis IA:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      municipality: req.body.name 
+    });
+  }
+});

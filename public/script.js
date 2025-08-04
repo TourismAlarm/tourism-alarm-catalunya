@@ -97,6 +97,47 @@ class TourismAlarmApp {
             });
         }
         
+        // NUEVO: Listener para selector de predicciones temporales
+        const predictionSelect = document.getElementById('predictionSelect');
+        if (predictionSelect) {
+            predictionSelect.addEventListener('change', (e) => {
+                this.state.selectedPrediction = e.target.value;
+                console.log(`🕐 Cambiando predicción a ${e.target.value} horas`);
+                
+                // Actualizar título de predicciones y status visual
+                const predTitle = document.getElementById('predictionTitle');
+                const predStatus = document.getElementById('predictionStatusText');
+                
+                const timeLabels = {
+                    '24': 'Próximas 24h',
+                    '48': 'Próximas 48h', 
+                    '168': 'Próxima semana'
+                };
+                
+                const statusLabels = {
+                    '24': '⚡ Predicción para 24 horas',
+                    '48': '🔮 Predicción para 48 horas',
+                    '168': '📅 Predicción para 1 semana'
+                };
+                
+                if (predTitle) {
+                    predTitle.textContent = `🤖 Predicción IA - ${timeLabels[e.target.value]}`;
+                }
+                
+                if (predStatus) {
+                    predStatus.textContent = statusLabels[e.target.value];
+                    // Añadir efecto visual de cambio
+                    predStatus.style.animation = 'pulse 0.5s ease-in-out';
+                    setTimeout(() => {
+                        predStatus.style.animation = '';
+                    }, 500);
+                }
+                
+                // Regenerar heatmap con nueva ventana temporal
+                this.createHeatmap();
+            });
+        }
+        
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -153,7 +194,7 @@ class TourismAlarmApp {
         }
 
         try {
-            console.log('🔥 Creando heatmap...');
+            console.log('🔥 Creando heatmap con análisis IA...');
             
             // Limpiar eventos anteriores
             this.map.off('zoomend');
@@ -163,22 +204,16 @@ class TourismAlarmApp {
                 this.map.removeLayer(this.heatmapLayer);
             }
             
+            // Obtener análisis IA enriquecido para municipios clave
+            await this.enrichMunicipalitiesWithAI();
+            
             // Generar puntos para heatmap
             const puntos = [];
             
             this.allMunicipalities.forEach(m => {
                 if (m.latitude && m.longitude) {
-                    // Calcular intensidad
-                    let intensidad = 0;
-                    if (m.alertLevel === 'critical') intensidad = 1.0;
-                    else if (m.alertLevel === 'high') intensidad = 0.75;
-                    else if (m.alertLevel === 'medium') intensidad = 0.5;
-                    else intensidad = 0.25;
-                    
-                    // Bonus por volumen de turistas
-                    if (m.visitants_anuals >= 10000000) intensidad = Math.min(1.0, intensidad + 0.4);
-                    else if (m.visitants_anuals >= 2000000) intensidad = Math.min(1.0, intensidad + 0.2);
-                    else if (m.visitants_anuals >= 1000000) intensidad = Math.min(1.0, intensidad + 0.1);
+                    // Calcular intensidad basada en análisis IA + datos estáticos
+                    let intensidad = this.calculateAIIntensity(m);
                     
                     // Generar múltiples puntos por municipio
                     const numPuntos = Math.floor(intensidad * 50) + 10;
@@ -272,10 +307,66 @@ class TourismAlarmApp {
     }
 
     setupRealTimeUpdates() {
-        // Actualización cada 5 minutos
+        // Actualización cada 5 minutos con análisis IA
         setInterval(() => {
+            console.log('🔄 Actualización automática con análisis IA...');
             this.refreshData();
         }, 5 * 60 * 1000);
+        
+        // Análisis IA más profundo cada 15 minutos
+        setInterval(() => {
+            console.log('🧠 Análisis IA profundo programado...');
+            this.runDeepAIAnalysis();
+        }, 15 * 60 * 1000);
+    }
+
+    async runDeepAIAnalysis() {
+        try {
+            const keyMunicipalities = this.allMunicipalities.filter(m => 
+                m.hasCoordinates && m.visitants_anuals > 1000000
+            ).slice(0, 5);
+            
+            console.log(`🧠 Ejecutando análisis IA profundo en ${keyMunicipalities.length} municipios...`);
+            
+            for (const municipality of keyMunicipalities) {
+                try {
+                    // Incluir ventana temporal en el análisis profundo
+                    const requestData = {
+                        ...municipality,
+                        prediction_window: this.state.selectedPrediction || '48'
+                    };
+                    
+                    const response = await fetch('/api/ai-analysis', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            municipality.aiAnalysis = result.data;
+                            municipality.aiEnriched = true;
+                            municipality.predictionWindow = this.state.selectedPrediction || '48';
+                            municipality.lastAIUpdate = new Date();
+                            console.log(`🧠 IA profundo: ${municipality.name} (${municipality.predictionWindow}h)`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`⚠️ Error análisis IA ${municipality.name}:`, error.message);
+                }
+                
+                // Pausa entre análisis para no sobrecargar APIs
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            // Actualizar heatmap con nuevos datos IA
+            await this.createHeatmap();
+            console.log('✅ Análisis IA profundo completado');
+            
+        } catch (error) {
+            console.error('❌ Error en análisis IA profundo:', error);
+        }
     }
 
     async refreshData() {
@@ -423,6 +514,116 @@ class TourismAlarmApp {
         }
         
         console.log('📊 UI actualizada con datos IA');
+    }
+
+    async enrichMunicipalitiesWithAI() {
+        try {
+            console.log('🤖 Enriqueciendo datos con análisis IA...');
+            
+            // Obtener municipios clave para análisis IA
+            const keyMunicipalities = this.allMunicipalities.filter(m => 
+                m.hasCoordinates && (m.visitants_anuals > 500000 || m.poblacio > 100000)
+            );
+            
+            const promises = keyMunicipalities.slice(0, 10).map(async municipality => {
+                try {
+                    // Enviar datos con ventana temporal actual
+                    const requestData = {
+                        ...municipality,
+                        prediction_window: this.state.selectedPrediction || '48'
+                    };
+                    
+                    const response = await fetch('/api/ai-analysis', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            municipality.aiAnalysis = result.data;
+                            municipality.aiEnriched = true;
+                            municipality.predictionWindow = this.state.selectedPrediction || '48';
+                            console.log(`✅ IA analizado: ${municipality.name} (${municipality.predictionWindow}h) - Multiplicador: ${result.data.tourism_multiplier}x`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`⚠️ IA no disponible para ${municipality.name}`);
+                }
+                return municipality;
+            });
+            
+            await Promise.all(promises);
+            console.log(`🧠 ${keyMunicipalities.filter(m => m.aiEnriched).length} municipios analizados con IA`);
+            
+        } catch (error) {
+            console.log('ℹ️ Análisis IA no disponible, usando datos estáticos');
+        }
+    }
+
+    calculateAIIntensity(municipality) {
+        let intensidad = 0;
+        const currentPredictionWindow = this.state.selectedPrediction || '48';
+        
+        // Si tiene análisis IA, usar multiplicador turístico
+        if (municipality.aiAnalysis && municipality.aiAnalysis.tourism_multiplier) {
+            const multiplier = municipality.aiAnalysis.tourism_multiplier;
+            intensidad = Math.min(1.0, multiplier / 2.0); // Normalizar a 0-1
+            
+            // Ajustar por nivel de riesgo IA
+            if (municipality.aiAnalysis.risk_level === 'crítico') intensidad = Math.min(1.0, intensidad + 0.3);
+            else if (municipality.aiAnalysis.risk_level === 'alto') intensidad = Math.min(1.0, intensidad + 0.2);
+            else if (municipality.aiAnalysis.risk_level === 'medio') intensidad = Math.min(1.0, intensidad + 0.1);
+            
+            // Ajustar intensidad según ventana temporal
+            const timeMultipliers = {
+                '24': 1.2,  // Mayor intensidad para predicciones a corto plazo
+                '48': 1.0,  // Base normal
+                '168': 0.8  // Menor intensidad para predicciones a largo plazo
+            };
+            intensidad *= (timeMultipliers[currentPredictionWindow] || 1.0);
+            
+        } else {
+            // Fallback a datos estáticos con variación temporal más dramática
+            if (municipality.alertLevel === 'critical') intensidad = 1.0;
+            else if (municipality.alertLevel === 'high') intensidad = 0.75;
+            else if (municipality.alertLevel === 'medium') intensidad = 0.5;
+            else intensidad = 0.25;
+            
+            // Simulación de variación temporal MÁS VISIBLE para datos estáticos
+            const timeVariations = {
+                '24': 1.3,  // 30% más intenso a corto plazo
+                '48': 1.0,  // Normal
+                '168': 0.7  // 30% menos intenso a largo plazo
+            };
+            intensidad *= (timeVariations[currentPredictionWindow] || 1.0);
+            
+            // Bonus extra para municipios turísticos según ventana temporal
+            if (municipality.visitants_anuals >= 5000000) {
+                const extraBonus = {
+                    '24': 0.2,  // Más urgencia en 24h
+                    '48': 0.1,  // Bonus normal
+                    '168': 0.05 // Menos urgencia en 1 semana
+                };
+                intensidad += (extraBonus[currentPredictionWindow] || 0);
+            }
+        }
+        
+        // Bonus por volumen de turistas
+        if (municipality.visitants_anuals >= 10000000) intensidad = Math.min(1.0, intensidad + 0.4);
+        else if (municipality.visitants_anuals >= 2000000) intensidad = Math.min(1.0, intensidad + 0.2);
+        else if (municipality.visitants_anuals >= 1000000) intensidad = Math.min(1.0, intensidad + 0.1);
+        
+        // Asegurar que no exceda 1.0
+        const finalIntensity = Math.min(1.0, intensidad);
+        
+        // Log para debug - mostrar cambios de intensidad
+        if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
+            console.log(`🎯 ${municipality.name} (${currentPredictionWindow}h): Intensidad ${finalIntensity.toFixed(2)}`);
+        }
+        
+        return finalIntensity;
     }
 
     getFallbackData() {

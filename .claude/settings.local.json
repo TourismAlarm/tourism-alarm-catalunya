@@ -3,7 +3,8 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
