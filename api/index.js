@@ -73,7 +73,58 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-// ENDPOINT DE ANÁLISIS IA PARA HEATMAP
+// ENDPOINT DE PREDICCIONES IA REALES PARA HEATMAP
+app.post('/api/ai-predictions', async (req, res) => {
+  try {
+    const { timeframe, municipalities } = req.body;
+    console.log(`🔮 Predicciones IA solicitadas para ${timeframe} - ${municipalities.length} municipios`);
+    
+    // Importar agente predictor
+    const { TourismPredictorAgent } = await import('../agents/predictors/tourism_predictor.js');
+    const predictor = new TourismPredictorAgent();
+    
+    // Ejecutar predicciones reales
+    const predictions = await predictor.predictTourismFlow(municipalities, timeframe);
+    
+    res.json({
+      success: true,
+      data: predictions,
+      timeframe,
+      timestamp: new Date()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en predicciones IA:', error);
+    
+    // Fallback con predicciones simuladas
+    const fallbackPredictions = {
+      timeframe,
+      predictions: municipalities.slice(0, 10).map(m => ({
+        municipality: m.name,
+        expected_flow: ['bajo', 'medio', 'alto'][Math.floor(Math.random() * 3)],
+        saturation_probability: Math.floor(Math.random() * 100),
+        risk_level: ['bajo', 'medio', 'alto'][Math.floor(Math.random() * 3)],
+        recommendations: [`Monitorear ${m.name}`]
+      })),
+      global_trends: {
+        overall_risk: 'medio',
+        hotspots: ['Barcelona', 'Lloret de Mar'],
+        safe_alternatives: ['Municipios rurales']
+      },
+      confidence: 0.6
+    };
+    
+    res.json({
+      success: true,
+      data: fallbackPredictions,
+      fallback: true,
+      timeframe,
+      timestamp: new Date()
+    });
+  }
+});
+
+// ENDPOINT DE ANÁLISIS IA PARA HEATMAP (individual)
 app.post('/api/ai-analysis', async (req, res) => {
   try {
     console.log('🤖 Análisis IA solicitado para:', req.body.name);

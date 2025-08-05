@@ -82,10 +82,50 @@ class TourismAlarmApp {
 
     initMap() {
         this.map = L.map('map').setView([41.8, 1.8], 8);
+        
+        // LÍMITES DE ZOOM Y CONTROLES
+        this.map.options.maxZoom = 12; // No permitir más zoom
+        this.map.options.minZoom = 7;  // No menos zoom para mantener calidad
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(this.map);
         this.markersLayer = L.layerGroup().addTo(this.map);
+    }
+
+    // NUEVA FUNCIÓN: Verificar si coordenadas están en el mar
+    isInSea(lat, lng) {
+        // Definir áreas marítimas aproximadas para excluir
+        const seaAreas = [
+            // Mar Mediterráneo frente a Barcelona
+            { minLat: 41.2, maxLat: 41.5, minLng: 2.5, maxLng: 3.5 },
+            // Mar frente a Tarragona  
+            { minLat: 40.8, maxLat: 41.2, minLng: 1.5, maxLng: 2.5 },
+            // Mar frente a Girona/Costa Brava
+            { minLat: 41.5, maxLat: 42.5, minLng: 3.0, maxLng: 3.5 },
+            // Área general marítima
+            { minLat: 40.5, maxLat: 43.0, minLng: 3.22, maxLng: 4.0 }
+        ];
+        
+        return seaAreas.some(area => 
+            lat >= area.minLat && lat <= area.maxLat &&
+            lng >= area.minLng && lng <= area.maxLng
+        );
+    }
+
+    // NUEVA FUNCIÓN: Verificar si coordenadas están en Catalunya tierra firme
+    isValidCataluniaCoordinate(lat, lng) {
+        // Límites más estrictos para Catalunya (sin mar)
+        const withinBounds = lat >= 40.52 && lat <= 42.86 && 
+                            lng >= 0.16 && lng <= 3.22; // Límite este reducido
+        
+        const notInSea = !this.isInSea(lat, lng);
+        
+        // Verificaciones adicionales para zonas problemáticas
+        const notInFrance = !(lat > 42.6 && lng > 2.8); // Evitar sur de Francia
+        const notInAragon = !(lng < 0.3); // Evitar Aragón occidental
+        
+        return withinBounds && notInSea && notInFrance && notInAragon;
     }
 
     setupEventListeners() {
@@ -215,53 +255,78 @@ class TourismAlarmApp {
                     // Calcular intensidad basada en análisis IA + datos estáticos
                     let intensidad = this.calculateAIIntensity(m);
                     
-                    // Generar múltiples puntos por municipio
-                    const numPuntos = Math.floor(intensidad * 50) + 10;
-                    for (let i = 0; i < numPuntos; i++) {
+                    // Generar múltiples puntos por municipio con validación estricta
+                    const zoom = this.map.getZoom();
+                    const maxIntensity = zoom < 8 ? 0.6 : 1.0; // Reducir intensidad en zoom out
+                    const adjustedIntensity = Math.min(intensidad, maxIntensity);
+                    
+                    const numPuntos = Math.floor(adjustedIntensity * 50) + 10;
+                    let validPoints = 0;
+                    let attempts = 0;
+                    
+                    for (let i = 0; i < numPuntos && attempts < numPuntos * 3; i++) {
+                        attempts++;
+                        
                         const finalLat = m.latitude + (Math.random() - 0.5) * 0.08;
                         const finalLng = m.longitude + (Math.random() - 0.5) * 0.08;
                         
-                        // Límites más estrictos
-                        if (finalLat >= 40.52 && finalLat <= 42.86 && 
-                            finalLng >= 0.16 && finalLng <= 3.32) {
+                        // VALIDACIÓN ESTRICTA: Solo coordenadas válidas en Catalunya
+                        if (this.isValidCataluniaCoordinate(finalLat, finalLng)) {
                             const variacion = 0.8 + Math.random() * 0.4;
-                            puntos.push([finalLat, finalLng, intensidad * variacion]);
+                            puntos.push([finalLat, finalLng, adjustedIntensity * variacion]);
+                            validPoints++;
+                        } else {
+                            i--; // Reintentar este punto
                         }
+                    }
+                    
+                    if (validPoints < numPuntos * 0.5) {
+                        console.log(`⚠️ Solo ${validPoints}/${numPuntos} puntos válidos para ${m.name}`);
                     }
                 }
             });
             
             console.log(`🗺️ Generando heatmap con ${puntos.length} puntos`);
             
-            // Crear heatmap
-            this.heatmapLayer = L.heatLayer(puntos, {
-                radius: this.map.getZoom() < 10 ? 35 : 25,
-                blur: this.map.getZoom() < 10 ? 25 : 15,
-                minOpacity: 0.1,
+            // Crear heatmap con configuración mejorada para zoom out
+            const zoom = this.map.getZoom();
+            const heatmapConfig = {
+                radius: zoom < 8 ? 45 : (zoom < 10 ? 35 : 25),
+                blur: zoom < 8 ? 35 : (zoom < 10 ? 25 : 15),
+                minOpacity: zoom < 8 ? 0.05 : 0.1, // Menos opacidad en zoom out
                 maxZoom: 16,
-                max: 0.9,
+                max: zoom < 8 ? 0.4 : 0.7, // REDUCIR intensidad máxima en zoom out
                 gradient: {
                     0.0: '#00ff00',  // Verde
-                    0.3: '#80ff00',  
-                    0.5: '#ffff00',  // Amarillo
-                    0.7: '#ff8000',  // Naranja
-                    1.0: '#ff0000'   // Rojo
+                    0.2: '#40ff00',  // Verde claro
+                    0.4: '#80ff00',  // Verde-amarillo
+                    0.6: '#ffff00',  // Amarillo
+                    0.8: '#ff8000',  // Naranja
+                    1.0: '#ff4000'   // Rojo menos intenso
                 }
-            }).addTo(this.map);
+            };
+            
+            this.heatmapLayer = L.heatLayer(puntos, heatmapConfig).addTo(this.map);
             
             console.log('✅ Heatmap creado correctamente');
             
-            // Ocultar heatmap cuando zoom < 7
+            // Actualizar heatmap en cambios de zoom
             this.map.on('zoomend', () => {
                 const zoom = this.map.getZoom();
                 if (zoom < 7) {
                     this.map.removeLayer(this.heatmapLayer);
                 } else if (!this.map.hasLayer(this.heatmapLayer)) {
                     this.heatmapLayer.addTo(this.map);
+                } else {
+                    // Regenerar heatmap con nueva configuración de zoom
+                    setTimeout(() => this.createHeatmap(), 100);
                 }
             });
             
             this.updateStats();
+            
+            // Actualizar predicciones UI después de crear heatmap
+            this.updatePredictionsUI();
             
         } catch (error) {
             console.error('❌ Error creating heatmap:', error);
@@ -428,16 +493,71 @@ class TourismAlarmApp {
     }
 
     updatePredictionsUI(predictions) {
+        console.log('🎯 Actualizando UI con predicciones:', predictions);
+        
         // Actualizar predicciones IA en la interfaz
         const predBarcelona = document.getElementById('predBarcelona');
         const predCosta = document.getElementById('predCosta');
         const predPirineos = document.getElementById('predPirineos');
         const generalTrend = document.getElementById('generalTrend');
 
-        if (predictions && predictions.next_48h) {
-            const pred48h = predictions.next_48h;
+        // Obtener predicciones del heatmap actual (si las hay)
+        const currentPredictions = this.getCurrentPredictionsFromMunicipalities();
+        
+        if (currentPredictions && currentPredictions.length > 0) {
+            console.log('📊 Usando predicciones del heatmap actual');
             
-            // Buscar predicciones específicas
+            // Buscar predicciones específicas del sistema actual
+            const barcelonaPred = currentPredictions.find(p => 
+                p.municipality && p.municipality.toLowerCase().includes('barcelona')
+            );
+            const costaPred = currentPredictions.find(p => 
+                p.municipality && ['lloret', 'blanes', 'roses'].some(city => 
+                    p.municipality.toLowerCase().includes(city)
+                )
+            );
+            const pirineosPred = currentPredictions.find(p => 
+                p.municipality && ['lleida', 'girona'].some(city => 
+                    p.municipality.toLowerCase().includes(city)
+                )
+            );
+            
+            if (predBarcelona && barcelonaPred) {
+                predBarcelona.textContent = `${barcelonaPred.expected_flow} (${barcelonaPred.saturation_probability}%)`;
+                predBarcelona.className = `prediction-value ${barcelonaPred.risk_level}`;
+            } else if (predBarcelona) {
+                predBarcelona.textContent = 'Calculando...';
+            }
+            
+            if (predCosta && costaPred) {
+                predCosta.textContent = `${costaPred.expected_flow} (${costaPred.saturation_probability}%)`;
+                predCosta.className = `prediction-value ${costaPred.risk_level}`;
+            } else if (predCosta) {
+                predCosta.textContent = 'Calculando...';
+            }
+            
+            if (predPirineos && pirineosPred) {
+                predPirineos.textContent = `${pirineosPred.expected_flow} (${pirineosPred.saturation_probability}%)`;
+                predPirineos.className = `prediction-value ${pirineosPred.risk_level}`;
+            } else if (predPirineos) {
+                predPirineos.textContent = 'Calculando...';
+            }
+            
+            // Tendencia general basada en municipios con predicciones
+            if (generalTrend) {
+                const riskLevels = currentPredictions.map(p => p.risk_level);
+                const avgRisk = this.calculateAverageRisk(riskLevels);
+                const avgConfidence = Math.floor(currentPredictions.length / this.allMunicipalities.length * 100);
+                
+                generalTrend.textContent = `${avgRisk} - Cobertura: ${avgConfidence}%`;
+                generalTrend.className = `prediction-value ${avgRisk}`;
+            }
+            
+        } else if (predictions && (predictions.next_48h || predictions.predictions)) {
+            // Fallback al formato original
+            console.log('📊 Usando formato de predicciones original');
+            const pred48h = predictions.next_48h || predictions;
+            
             const barcelonaPred = this.findMunicipalityPrediction(pred48h, 'Barcelona');
             const costaPred = this.findRegionPrediction(pred48h, 'costa');
             const pirineosPred = this.findRegionPrediction(pred48h, 'pirineos');
@@ -461,7 +581,36 @@ class TourismAlarmApp {
                 generalTrend.textContent = `${pred48h.global_trends.overall_risk} - Confianza: ${pred48h.confidence || 'N/A'}%`;
                 generalTrend.className = `prediction-value ${pred48h.global_trends.overall_risk}`;
             }
+        } else {
+            console.log('⚠️ No hay predicciones disponibles para mostrar');
         }
+    }
+
+    getCurrentPredictionsFromMunicipalities() {
+        // Extraer predicciones de municipios que las tienen
+        const predictions = [];
+        
+        this.allMunicipalities.forEach(municipality => {
+            if (municipality.aiPrediction) {
+                predictions.push(municipality.aiPrediction);
+            }
+        });
+        
+        return predictions;
+    }
+
+    calculateAverageRisk(riskLevels) {
+        const riskWeights = { 'bajo': 1, 'medio': 2, 'alto': 3, 'crítico': 4 };
+        const validRisks = riskLevels.filter(r => riskWeights[r]);
+        
+        if (validRisks.length === 0) return 'medio';
+        
+        const avgWeight = validRisks.reduce((sum, risk) => sum + riskWeights[risk], 0) / validRisks.length;
+        
+        if (avgWeight <= 1.5) return 'bajo';
+        if (avgWeight <= 2.5) return 'medio';
+        if (avgWeight <= 3.5) return 'alto';
+        return 'crítico';
     }
 
     findMunicipalityPrediction(prediction, municipalityName) {
@@ -518,56 +667,143 @@ class TourismAlarmApp {
 
     async enrichMunicipalitiesWithAI() {
         try {
-            console.log('🤖 Enriqueciendo datos con análisis IA...');
+            console.log('🤖 Obteniendo predicciones IA reales...');
             
-            // Obtener municipios clave para análisis IA
-            const keyMunicipalities = this.allMunicipalities.filter(m => 
-                m.hasCoordinates && (m.visitants_anuals > 500000 || m.poblacio > 100000)
-            );
+            const timeframe = this.state.selectedPrediction || '48';
+            const timeframeSuffix = timeframe + 'h';
             
-            const promises = keyMunicipalities.slice(0, 10).map(async municipality => {
-                try {
-                    // Enviar datos con ventana temporal actual
-                    const requestData = {
-                        ...municipality,
-                        prediction_window: this.state.selectedPrediction || '48'
-                    };
+            // Obtener predicciones reales del sistema IA
+            const predictions = await this.getPredictionsFromAI(timeframeSuffix);
+            
+            if (predictions && predictions.predictions) {
+                console.log(`🔮 Aplicando ${predictions.predictions.length} predicciones para ${timeframeSuffix}`);
+                
+                // Aplicar predicciones reales a municipios
+                this.allMunicipalities.forEach(municipality => {
+                    const prediction = predictions.predictions.find(pred => 
+                        pred.municipality && pred.municipality.toLowerCase().includes(municipality.name.toLowerCase())
+                    );
                     
-                    const response = await fetch('/api/ai-analysis', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(requestData)
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.success) {
-                            municipality.aiAnalysis = result.data;
-                            municipality.aiEnriched = true;
-                            municipality.predictionWindow = this.state.selectedPrediction || '48';
-                            console.log(`✅ IA analizado: ${municipality.name} (${municipality.predictionWindow}h) - Multiplicador: ${result.data.tourism_multiplier}x`);
-                        }
+                    if (prediction) {
+                        municipality.aiPrediction = prediction;
+                        municipality.predicted_intensity = prediction.saturation_probability / 100;
+                        municipality.ai_risk_level = prediction.risk_level;
+                        municipality.predictionWindow = timeframe;
+                        console.log(`✅ Predicción aplicada: ${municipality.name} - Saturación: ${prediction.saturation_probability}%`);
                     }
-                } catch (error) {
-                    console.log(`⚠️ IA no disponible para ${municipality.name}`);
+                });
+                
+                // Aplicar tendencias globales para municipios sin predicción específica
+                if (predictions.global_trends) {
+                    this.applyGlobalTrends(predictions.global_trends);
                 }
-                return municipality;
-            });
-            
-            await Promise.all(promises);
-            console.log(`🧠 ${keyMunicipalities.filter(m => m.aiEnriched).length} municipios analizados con IA`);
+                
+            } else {
+                console.log('ℹ️ Usando análisis individual de municipios clave...');
+                await this.fallbackToIndividualAnalysis();
+            }
             
         } catch (error) {
-            console.log('ℹ️ Análisis IA no disponible, usando datos estáticos');
+            console.log('ℹ️ Predicciones IA no disponibles, usando datos estáticos');
+            await this.fallbackToIndividualAnalysis();
         }
+    }
+
+    async getPredictionsFromAI(timeframe) {
+        try {
+            const response = await fetch('/api/ai-predictions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    timeframe,
+                    municipalities: this.allMunicipalities.slice(0, 20) // Limitar para performance
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                return result.success ? result.data : null;
+            }
+        } catch (error) {
+            console.log('⚠️ Error obteniendo predicciones IA:', error.message);
+        }
+        return null;
+    }
+
+    applyGlobalTrends(globalTrends) {
+        const riskMultipliers = {
+            'bajo': 0.6,
+            'medio': 1.0,
+            'alto': 1.4,
+            'crítico': 1.8
+        };
+        
+        const globalRiskMultiplier = riskMultipliers[globalTrends.overall_risk] || 1.0;
+        
+        this.allMunicipalities.forEach(municipality => {
+            if (!municipality.aiPrediction) {
+                // Aplicar tendencia global con variación aleatoria
+                const baseIntensity = 0.5;
+                const variation = (Math.random() - 0.5) * 0.3;
+                municipality.predicted_intensity = Math.max(0.1, Math.min(1.0, 
+                    (baseIntensity + variation) * globalRiskMultiplier
+                ));
+                municipality.ai_risk_level = globalTrends.overall_risk;
+            }
+        });
+    }
+
+    async fallbackToIndividualAnalysis() {
+        // Fallback al sistema anterior para municipios clave
+        const keyMunicipalities = this.allMunicipalities.filter(m => 
+            m.hasCoordinates && (m.visitants_anuals > 500000 || m.poblacio > 100000)
+        );
+        
+        const promises = keyMunicipalities.slice(0, 10).map(async municipality => {
+            try {
+                const requestData = {
+                    ...municipality,
+                    prediction_window: this.state.selectedPrediction || '48'
+                };
+                
+                const response = await fetch('/api/ai-analysis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        municipality.aiAnalysis = result.data;
+                        municipality.aiEnriched = true;
+                        municipality.predictionWindow = this.state.selectedPrediction || '48';
+                    }
+                }
+            } catch (error) {
+                console.log(`⚠️ IA no disponible para ${municipality.name}`);
+            }
+            return municipality;
+        });
+        
+        await Promise.all(promises);
     }
 
     calculateAIIntensity(municipality) {
         let intensidad = 0;
         const currentPredictionWindow = this.state.selectedPrediction || '48';
         
-        // Si tiene análisis IA, usar multiplicador turístico
-        if (municipality.aiAnalysis && municipality.aiAnalysis.tourism_multiplier) {
+        // PRIORIDAD 1: Usar predicciones reales de IA si están disponibles
+        if (municipality.aiPrediction && municipality.predicted_intensity !== undefined) {
+            intensidad = municipality.predicted_intensity; // Ya normalizado 0-1
+            
+            // Log de predicción real
+            if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
+                console.log(`🔮 ${municipality.name} (${currentPredictionWindow}h): Predicción IA real - Saturación ${(intensidad * 100).toFixed(0)}% (${municipality.aiPrediction.expected_flow})`);
+            }
+            
+        // PRIORIDAD 2: Usar análisis individual IA (fallback)
+        } else if (municipality.aiAnalysis && municipality.aiAnalysis.tourism_multiplier) {
             const multiplier = municipality.aiAnalysis.tourism_multiplier;
             intensidad = Math.min(1.0, multiplier / 2.0); // Normalizar a 0-1
             
@@ -576,22 +812,32 @@ class TourismAlarmApp {
             else if (municipality.aiAnalysis.risk_level === 'alto') intensidad = Math.min(1.0, intensidad + 0.2);
             else if (municipality.aiAnalysis.risk_level === 'medio') intensidad = Math.min(1.0, intensidad + 0.1);
             
-            // Ajustar intensidad según ventana temporal
-            const timeMultipliers = {
-                '24': 1.2,  // Mayor intensidad para predicciones a corto plazo
-                '48': 1.0,  // Base normal
-                '168': 0.8  // Menor intensidad para predicciones a largo plazo
-            };
-            intensidad *= (timeMultipliers[currentPredictionWindow] || 1.0);
+            if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
+                console.log(`🤖 ${municipality.name} (${currentPredictionWindow}h): Análisis IA individual - Multiplicador ${multiplier}x`);
+            }
             
+        // PRIORIDAD 3: Tendencias globales aplicadas
+        } else if (municipality.ai_risk_level) {
+            const riskIntensities = {
+                'bajo': 0.3,
+                'medio': 0.6,
+                'alto': 0.8,
+                'crítico': 1.0
+            };
+            intensidad = riskIntensities[municipality.ai_risk_level] || 0.5;
+            
+            if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
+                console.log(`🌍 ${municipality.name} (${currentPredictionWindow}h): Tendencia global - Riesgo ${municipality.ai_risk_level}`);
+            }
+            
+        // PRIORIDAD 4: Fallback a datos estáticos (último recurso)
         } else {
-            // Fallback a datos estáticos con variación temporal más dramática
             if (municipality.alertLevel === 'critical') intensidad = 1.0;
             else if (municipality.alertLevel === 'high') intensidad = 0.75;
             else if (municipality.alertLevel === 'medium') intensidad = 0.5;
             else intensidad = 0.25;
             
-            // Simulación de variación temporal MÁS VISIBLE para datos estáticos
+            // Simulación de variación temporal para datos estáticos
             const timeVariations = {
                 '24': 1.3,  // 30% más intenso a corto plazo
                 '48': 1.0,  // Normal
@@ -599,31 +845,20 @@ class TourismAlarmApp {
             };
             intensidad *= (timeVariations[currentPredictionWindow] || 1.0);
             
-            // Bonus extra para municipios turísticos según ventana temporal
-            if (municipality.visitants_anuals >= 5000000) {
-                const extraBonus = {
-                    '24': 0.2,  // Más urgencia en 24h
-                    '48': 0.1,  // Bonus normal
-                    '168': 0.05 // Menos urgencia en 1 semana
-                };
-                intensidad += (extraBonus[currentPredictionWindow] || 0);
+            if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
+                console.log(`📊 ${municipality.name} (${currentPredictionWindow}h): Datos estáticos - Nivel ${municipality.alertLevel || 'normal'}`);
             }
         }
         
-        // Bonus por volumen de turistas
-        if (municipality.visitants_anuals >= 10000000) intensidad = Math.min(1.0, intensidad + 0.4);
-        else if (municipality.visitants_anuals >= 2000000) intensidad = Math.min(1.0, intensidad + 0.2);
-        else if (municipality.visitants_anuals >= 1000000) intensidad = Math.min(1.0, intensidad + 0.1);
-        
-        // Asegurar que no exceda 1.0
-        const finalIntensity = Math.min(1.0, intensidad);
-        
-        // Log para debug - mostrar cambios de intensidad
-        if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
-            console.log(`🎯 ${municipality.name} (${currentPredictionWindow}h): Intensidad ${finalIntensity.toFixed(2)}`);
+        // Bonus por volumen de turistas (aplicar solo si no es predicción real)
+        if (!municipality.aiPrediction) {
+            if (municipality.visitants_anuals >= 10000000) intensidad = Math.min(1.0, intensidad + 0.3);
+            else if (municipality.visitants_anuals >= 2000000) intensidad = Math.min(1.0, intensidad + 0.2);
+            else if (municipality.visitants_anuals >= 1000000) intensidad = Math.min(1.0, intensidad + 0.1);
         }
         
-        return finalIntensity;
+        // Asegurar que no exceda 1.0
+        return Math.min(1.0, Math.max(0.1, intensidad));
     }
 
     getFallbackData() {
