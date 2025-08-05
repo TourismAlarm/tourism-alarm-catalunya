@@ -4,7 +4,12 @@
     "allow": [
       "Bash(node:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm install)",
+      "Bash(curl:*)",
+      "Bash(npm run start:*)",
+      "Bash(npm start)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

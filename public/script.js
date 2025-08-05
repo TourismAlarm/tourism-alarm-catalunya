@@ -83,9 +83,9 @@ class TourismAlarmApp {
     initMap() {
         this.map = L.map('map').setView([41.8, 1.8], 8);
         
-        // LÍMITES DE ZOOM Y CONTROLES
-        this.map.options.maxZoom = 12; // No permitir más zoom
-        this.map.options.minZoom = 7;  // No menos zoom para mantener calidad
+        // LÍMITES DE ZOOM - Solo limitar ZOOM IN máximo
+        this.map.options.maxZoom = 11; // Límite máximo zoom in
+        // NO limitar zoom out - que se pueda hacer zoom out libremente
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
@@ -255,54 +255,37 @@ class TourismAlarmApp {
                     // Calcular intensidad basada en análisis IA + datos estáticos
                     let intensidad = this.calculateAIIntensity(m);
                     
-                    // Generar múltiples puntos por municipio con validación estricta
-                    const zoom = this.map.getZoom();
-                    const maxIntensity = zoom < 8 ? 0.6 : 1.0; // Reducir intensidad en zoom out
-                    const adjustedIntensity = Math.min(intensidad, maxIntensity);
+                    // Generar puntos SOLO en coordenadas de municipios reales (sin validaciones complejas)
+                    const numPuntos = Math.floor(intensidad * 30) + 5; // Menos puntos, más precisos
                     
-                    const numPuntos = Math.floor(adjustedIntensity * 50) + 10;
-                    let validPoints = 0;
-                    let attempts = 0;
-                    
-                    for (let i = 0; i < numPuntos && attempts < numPuntos * 3; i++) {
-                        attempts++;
+                    // Usar coordenadas exactas del municipio con variación mínima
+                    for (let i = 0; i < numPuntos; i++) {
+                        // Variación muy pequeña alrededor del municipio real
+                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.02; // Reducido de 0.08 a 0.02
+                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.02;
                         
-                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.08;
-                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.08;
-                        
-                        // VALIDACIÓN ESTRICTA: Solo coordenadas válidas en Catalunya
-                        if (this.isValidCataluniaCoordinate(finalLat, finalLng)) {
-                            const variacion = 0.8 + Math.random() * 0.4;
-                            puntos.push([finalLat, finalLng, adjustedIntensity * variacion]);
-                            validPoints++;
-                        } else {
-                            i--; // Reintentar este punto
-                        }
-                    }
-                    
-                    if (validPoints < numPuntos * 0.5) {
-                        console.log(`⚠️ Solo ${validPoints}/${numPuntos} puntos válidos para ${m.name}`);
+                        const variacion = 0.9 + Math.random() * 0.2;
+                        puntos.push([finalLat, finalLng, intensidad * variacion]);
                     }
                 }
             });
             
             console.log(`🗺️ Generando heatmap con ${puntos.length} puntos`);
             
-            // Crear heatmap con configuración mejorada para zoom out
-            const zoom = this.map.getZoom();
+            // Crear heatmap con configuración estándar
             const heatmapConfig = {
-                radius: zoom < 8 ? 45 : (zoom < 10 ? 35 : 25),
-                blur: zoom < 8 ? 35 : (zoom < 10 ? 25 : 15),
-                minOpacity: zoom < 8 ? 0.05 : 0.1, // Menos opacidad en zoom out
+                radius: 25,
+                blur: 15,
+                minOpacity: 0.1,
                 maxZoom: 16,
-                max: zoom < 8 ? 0.4 : 0.7, // REDUCIR intensidad máxima en zoom out
+                max: 0.8, // Intensidad máxima fija
                 gradient: {
-                    0.0: '#00ff00',  // Verde
-                    0.2: '#40ff00',  // Verde claro
-                    0.4: '#80ff00',  // Verde-amarillo
-                    0.6: '#ffff00',  // Amarillo
-                    0.8: '#ff8000',  // Naranja
-                    1.0: '#ff4000'   // Rojo menos intenso
+                    0.0: '#006400',  // Verde oscuro
+                    0.3: '#32CD32',  // Verde lima  
+                    0.5: '#FFD700',  // Amarillo oro
+                    0.7: '#FF8C00',  // Naranja oscuro
+                    0.9: '#FF4500',  // Rojo naranja
+                    1.0: '#DC143C'   // Crimson (rojo controlado)
                 }
             };
             
@@ -310,16 +293,23 @@ class TourismAlarmApp {
             
             console.log('✅ Heatmap creado correctamente');
             
-            // Actualizar heatmap en cambios de zoom
+            // Control de visibilidad heatmap según zoom
             this.map.on('zoomend', () => {
                 const zoom = this.map.getZoom();
-                if (zoom < 7) {
-                    this.map.removeLayer(this.heatmapLayer);
-                } else if (!this.map.hasLayer(this.heatmapLayer)) {
-                    this.heatmapLayer.addTo(this.map);
+                console.log(`🔍 Zoom level: ${zoom}`);
+                
+                if (zoom < 6) {
+                    // Ocultar heatmap en zoom out extremo
+                    if (this.map.hasLayer(this.heatmapLayer)) {
+                        this.map.removeLayer(this.heatmapLayer);
+                        console.log('🙈 Heatmap oculto (zoom < 6)');
+                    }
                 } else {
-                    // Regenerar heatmap con nueva configuración de zoom
-                    setTimeout(() => this.createHeatmap(), 100);
+                    // Mostrar heatmap en zoom normal
+                    if (!this.map.hasLayer(this.heatmapLayer)) {
+                        this.heatmapLayer.addTo(this.map);
+                        console.log('👁️ Heatmap visible (zoom >= 6)');
+                    }
                 }
             });
             
@@ -711,17 +701,20 @@ class TourismAlarmApp {
 
     async getPredictionsFromAI(timeframe) {
         try {
+            console.log(`🧠 Solicitando análisis IA para TODOS los ${this.allMunicipalities.length} municipios`);
+            
             const response = await fetch('/api/ai-predictions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     timeframe,
-                    municipalities: this.allMunicipalities.slice(0, 20) // Limitar para performance
+                    municipalities: this.allMunicipalities // TODOS los 947 municipios
                 })
             });
             
             if (response.ok) {
                 const result = await response.json();
+                console.log(`📊 Recibidas ${result.data?.predictions?.length || 0} predicciones IA para ${timeframe}`);
                 return result.success ? result.data : null;
             }
         } catch (error) {
