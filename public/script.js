@@ -572,7 +572,38 @@ class TourismAlarmApp {
                 generalTrend.className = `prediction-value ${pred48h.global_trends.overall_risk}`;
             }
         } else {
-            console.log('⚠️ No hay predicciones disponibles para mostrar');
+            console.log('⚠️ No hay predicciones disponibles, generando fallback...');
+            
+            // FALLBACK: Generar predicciones básicas cuando no hay datos IA
+            const currentWindow = this.state.selectedPrediction || '48';
+            const timeLabels = {
+                '24': { multiplier: 1.2, base: 'Alto' },
+                '48': { multiplier: 1.0, base: 'Medio' },
+                '168': { multiplier: 0.8, base: 'Medio-Bajo' }
+            };
+            const timeConfig = timeLabels[currentWindow] || timeLabels['48'];
+            
+            if (predBarcelona) {
+                predBarcelona.textContent = `${timeConfig.base} (${Math.floor(45 * timeConfig.multiplier)}%)`;
+                predBarcelona.className = `prediction-value medio`;
+            }
+            
+            if (predCosta) {
+                predCosta.textContent = `${timeConfig.base} (${Math.floor(55 * timeConfig.multiplier)}%)`;
+                predCosta.className = `prediction-value alto`;
+            }
+            
+            if (predPirineos) {
+                predPirineos.textContent = `${timeConfig.base} (${Math.floor(35 * timeConfig.multiplier)}%)`;
+                predPirineos.className = `prediction-value bajo`;
+            }
+            
+            if (generalTrend) {
+                generalTrend.textContent = `${timeConfig.base} - Estimación temporal`;
+                generalTrend.className = `prediction-value medio`;
+            }
+            
+            console.log(`📊 Fallback aplicado para ventana ${currentWindow}h`);
         }
     }
 
@@ -688,6 +719,9 @@ class TourismAlarmApp {
                     this.applyGlobalTrends(predictions.global_trends);
                 }
                 
+                // Asegurar que todos los municipios tengan predicciones
+                this.ensureMunicipalitiesHavePredictions();
+                
             } else {
                 console.log('ℹ️ Usando análisis individual de municipios clave...');
                 await this.fallbackToIndividualAnalysis();
@@ -696,6 +730,9 @@ class TourismAlarmApp {
         } catch (error) {
             console.log('ℹ️ Predicciones IA no disponibles, usando datos estáticos');
             await this.fallbackToIndividualAnalysis();
+            
+            // Asegurar que TODOS los municipios tengan al menos predicción básica
+            this.ensureMunicipalitiesHavePredictions();
         }
     }
 
@@ -790,6 +827,54 @@ class TourismAlarmApp {
         });
         
         await Promise.all(promises);
+    }
+
+    ensureMunicipalitiesHavePredictions() {
+        const currentWindow = this.state.selectedPrediction || '48';
+        let predictionsGenerated = 0;
+        
+        this.allMunicipalities.forEach(municipality => {
+            if (!municipality.aiPrediction && !municipality.aiAnalysis && municipality.hasCoordinates) {
+                // Generar predicción básica basada en datos del municipio
+                let riskLevel = 'bajo';
+                let saturationProb = 25;
+                
+                if (municipality.visitants_anuals > 5000000) {
+                    riskLevel = 'alto';
+                    saturationProb = 65;
+                } else if (municipality.visitants_anuals > 1000000) {
+                    riskLevel = 'medio'; 
+                    saturationProb = 45;
+                } else if (municipality.visitants_anuals > 500000) {
+                    riskLevel = 'medio';
+                    saturationProb = 35;
+                }
+                
+                // Aplicar variación temporal
+                const timeHours = parseInt(currentWindow);
+                if (timeHours <= 24) {
+                    saturationProb = Math.min(90, Math.floor(saturationProb * 1.2));
+                } else if (timeHours >= 168) {
+                    saturationProb = Math.max(10, Math.floor(saturationProb * 0.8));
+                }
+                
+                municipality.aiPrediction = {
+                    municipality: municipality.name,
+                    expected_flow: riskLevel,
+                    saturation_probability: saturationProb,
+                    risk_level: riskLevel,
+                    data_source: 'statistical_fallback'
+                };
+                
+                municipality.predicted_intensity = saturationProb / 100;
+                municipality.ai_risk_level = riskLevel;
+                municipality.predictionWindow = currentWindow;
+                
+                predictionsGenerated++;
+            }
+        });
+        
+        console.log(`📊 Generadas ${predictionsGenerated} predicciones de fallback para ventana ${currentWindow}h`);
     }
 
     calculateAIIntensity(municipality) {
