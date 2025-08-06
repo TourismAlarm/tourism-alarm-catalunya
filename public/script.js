@@ -371,15 +371,19 @@ class TourismAlarmApp {
                 console.log(`  Este: ${bounds.east.toFixed(4)} (debería ser ~3.3)`);
                 console.log(`  Oeste: ${bounds.west.toFixed(4)} (debería ser ~0.1)`);
                 
-                // Verificar si parece Catalunya
-                const isValidBounds = bounds.north <= 42.9 && bounds.south >= 40.5 && 
-                                     bounds.east <= 3.3 && bounds.west >= 0.1;
+                // Verificar si parece Catalunya (con márgenes de tolerancia)
+                const isValidBounds = bounds.north <= 43.0 && bounds.south >= 40.4 && 
+                                     bounds.east <= 3.4 && bounds.west >= 0.0;
                                      
                 if (isValidBounds) {
-                    console.log('✅ Las coordenadas parecen estar en Catalunya');
+                    console.log('✅ Las coordenadas ESTÁN EN CATALUNYA - bounds correctos');
+                    console.log('   Si aún se ve como cuadrado, el problema está en la configuración del heatmap');
                 } else {
                     console.warn('⚠️ LAS COORDENADAS NO PARECEN SER DE CATALUNYA!');
-                    console.warn('   Esto explicaría por qué se ve como un cuadrado');
+                    console.warn(`   Norte: ${bounds.north} (esperado: <43.0)`);
+                    console.warn(`   Sur: ${bounds.south} (esperado: >40.4)`);
+                    console.warn(`   Este: ${bounds.east} (esperado: <3.4)`);
+                    console.warn(`   Oeste: ${bounds.west} (esperado: >0.0)`);
                 }
             }
             
@@ -387,24 +391,32 @@ class TourismAlarmApp {
                 throw new Error('No se pudieron generar puntos para el heatmap');
             }
             
-            // CONFIGURACIÓN HEATMAP PROFESIONAL (tipo meteorológico)
+            // CONFIGURACIÓN HEATMAP PROFESIONAL para forma de Catalunya
             const heatmapConfig = {
-                radius: 25,          // Radio de influencia de cada punto
-                blur: 20,            // Difuminado suave para gradiente continuo
-                minOpacity: 0.1,     // Transparencia mínima
-                maxZoom: 18,         // Funciona en todos los zooms
+                radius: 15,          // Radio más pequeño para mejor definición de Catalunya
+                blur: 10,            // Menos difuminado para mantener forma geográfica
+                minOpacity: 0.05,    // Más transparente para suavizar bordes
+                maxZoom: 20,         // Permitir más zoom
                 max: 1.0,            // Intensidad máxima normalizada
                 gradient: {
-                    // Gradiente estilo meteorológico profesional
-                    0.0: 'rgba(0, 255, 0, 0)',      // Transparente
-                    0.1: '#00FF00',                   // Verde bajo riesgo
-                    0.3: '#7FFF00',                   // Verde-amarillo
-                    0.5: '#FFFF00',                   // Amarillo medio
-                    0.7: '#FFA500',                   // Naranja alto
-                    0.85: '#FF4500',                  // Rojo-naranja crítico  
-                    1.0: '#FF0000'                    // Rojo máximo
+                    // Gradiente meteorológico con más transparencia inicial
+                    0.0: 'rgba(255, 255, 255, 0)',   // Completamente transparente
+                    0.05: 'rgba(0, 255, 0, 0.3)',    // Verde muy transparente
+                    0.2: '#00FF00',                    // Verde bajo riesgo
+                    0.4: '#7FFF00',                    // Verde-amarillo
+                    0.6: '#FFFF00',                    // Amarillo medio
+                    0.75: '#FFA500',                   // Naranja alto
+                    0.9: '#FF4500',                    // Rojo-naranja crítico  
+                    1.0: '#FF0000'                     // Rojo máximo
                 }
             };
+            
+            console.log('🎨 Configuración heatmap optimizada para forma de Catalunya:', {
+                radius: heatmapConfig.radius,
+                blur: heatmapConfig.blur,
+                puntos: heatmapPoints.length,
+                'Nota': 'Radio reducido para mantener forma geográfica natural'
+            });
             
             console.log('📊 Configuración heatmap meteorológico:', {
                 puntos: heatmapPoints.length,
