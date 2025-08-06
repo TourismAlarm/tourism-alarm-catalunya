@@ -4,9 +4,9 @@
   "description": "Sistema de monitoreo turístico de Catalunya con datos IDESCAT",
   "main": "api/index.js",
   "scripts": {
-    "dev": "node api/index.js",
+    "dev": "node real-api-server.js",
     "build": "echo 'Build completed'",
-    "start": "node api/index.js",
+    "start": "node real-api-server.js",
     "deploy": "vercel --prod"
   },
   "dependencies": {

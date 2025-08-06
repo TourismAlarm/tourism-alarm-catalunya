@@ -96,83 +96,56 @@ app.post('/api/ai-predictions', async (req, res) => {
   } catch (error) {
     console.error('❌ Error en predicciones IA:', error);
     
-    // Fallback con análisis REAL de TODOS los municipios usando el Collector Agent
-    console.log(`🔄 Fallback: Análisis individual para ${municipalities.length} municipios`);
+    // Fallback rápido con predicciones basadas en datos municipales
+    console.log(`🔄 Fallback rápido: Generando predicciones para ${municipalities.length} municipios`);
     
-    const { TourismCollectorAgent } = await import('../agents/collectors/tourism_collector.js');
-    const collector = new TourismCollectorAgent();
-    
-    const predictions = [];
-    let processed = 0;
-    
-    // Procesar todos los municipios (máximo 100 simultáneos para no saturar)
-    const batchSize = 50;
-    for (let i = 0; i < municipalities.length; i += batchSize) {
-      const batch = municipalities.slice(i, i + batchSize);
+    const predictions = municipalities.map(municipality => {
+      // Calcular riesgo basado en datos del municipio
+      let riskLevel = 'bajo';
+      let saturationProb = 20;
       
-      const batchPromises = batch.map(async (municipality) => {
-        try {
-          const enrichedData = {
-            ...municipality,
-            prediction_window: timeframe.replace('h', '')
-          };
-          
-          const analysis = await collector.analyzeMunicipality(enrichedData);
-          const parsed = JSON.parse(analysis);
-          
-          processed++;
-          if (processed % 50 === 0) {
-            console.log(`📊 Procesados ${processed}/${municipalities.length} municipios`);
-          }
-          
-          return {
-            municipality: municipality.name,
-            expected_flow: parsed.risk_level || 'medio',
-            saturation_probability: Math.floor((parsed.tourism_multiplier || 1.0) * 50),
-            risk_level: parsed.risk_level || 'medio',
-            recommendations: parsed.recommendations || [`Monitorear ${municipality.name}`],
-            ai_analysis: parsed // Datos completos del análisis IA
-          };
-          
-        } catch (error) {
-          console.log(`⚠️ Error procesando ${municipality.name}:`, error.message);
-          
-          // Fallback basado en datos reales del municipio
-          const riskLevel = municipality.visitants_anuals > 5000000 ? 'alto' : 
-                           municipality.visitants_anuals > 1000000 ? 'medio' : 'bajo';
-          
-          return {
-            municipality: municipality.name,
-            expected_flow: riskLevel,
-            saturation_probability: municipality.visitants_anuals > 5000000 ? 
-              60 + Math.floor(Math.random() * 30) : 
-              20 + Math.floor(Math.random() * 40),
-            risk_level: riskLevel,
-            recommendations: [`Datos basados en ${municipality.visitants_anuals.toLocaleString()} visitantes anuales`]
-          };
-        }
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      predictions.push(...batchResults);
-      
-      // Pausa pequeña entre batches para no saturar
-      if (i + batchSize < municipalities.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (municipality.visitants_anuals > 5000000) {
+        riskLevel = 'alto';
+        saturationProb = 60 + Math.floor(Math.random() * 30);
+      } else if (municipality.visitants_anuals > 1000000) {
+        riskLevel = 'medio'; 
+        saturationProb = 40 + Math.floor(Math.random() * 30);
+      } else if (municipality.visitants_anuals > 500000) {
+        riskLevel = 'medio';
+        saturationProb = 30 + Math.floor(Math.random() * 25);
+      } else {
+        riskLevel = 'bajo';
+        saturationProb = 10 + Math.floor(Math.random() * 20);
       }
-    }
+      
+      // Ajustes por ventana temporal
+      const timeHours = parseInt(timeframe.replace('h', ''));
+      if (timeHours <= 24) {
+        saturationProb = Math.min(90, saturationProb * 1.2); // Más saturación a corto plazo
+      } else if (timeHours >= 168) {
+        saturationProb = Math.max(10, saturationProb * 0.8); // Menos saturación a largo plazo
+      }
+      
+      return {
+        municipality: municipality.name,
+        expected_flow: riskLevel,
+        saturation_probability: Math.floor(saturationProb),
+        risk_level: riskLevel,
+        recommendations: [`Monitorear ${municipality.name} - ${municipality.visitants_anuals?.toLocaleString() || 'N/A'} visitantes anuales`]
+      };
+    });
     
     const fallbackPredictions = {
       timeframe,
       predictions,
       global_trends: {
-        overall_risk: this.calculateOverallRisk(predictions),
-        hotspots: this.findHotspots(predictions),
-        safe_alternatives: this.findSafeAlternatives(predictions)
+        overall_risk: calculateOverallRisk(predictions),
+        hotspots: findHotspots(predictions),
+        safe_alternatives: findSafeAlternatives(predictions)
       },
-      confidence: 0.8, // Mayor confianza con análisis IA real
+      confidence: 0.7,
       total_analyzed: predictions.length,
-      data_source: 'tourism_collector_agent'
+      data_source: 'statistical_analysis'
     };
     
     res.json({

@@ -701,21 +701,31 @@ class TourismAlarmApp {
 
     async getPredictionsFromAI(timeframe) {
         try {
-            console.log(`🧠 Solicitando análisis IA para TODOS los ${this.allMunicipalities.length} municipios`);
+            console.log(`🧠 Solicitando análisis IA para muestra de municipios...`);
+            
+            // Usar una muestra representativa de municipios para evitar timeout
+            const sampleMunicipalities = this.allMunicipalities
+                .filter(m => m.hasCoordinates)
+                .sort((a, b) => (b.visitants_anuals || 0) - (a.visitants_anuals || 0))
+                .slice(0, 100); // Top 100 municipios más importantes
             
             const response = await fetch('/api/ai-predictions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     timeframe,
-                    municipalities: this.allMunicipalities // TODOS los 947 municipios
+                    municipalities: sampleMunicipalities
                 })
             });
             
             if (response.ok) {
                 const result = await response.json();
                 console.log(`📊 Recibidas ${result.data?.predictions?.length || 0} predicciones IA para ${timeframe}`);
-                return result.success ? result.data : null;
+                
+                // Si obtenemos predicciones válidas, devolver
+                if (result.success && result.data && result.data.predictions) {
+                    return result.data;
+                }
             }
         } catch (error) {
             console.log('⚠️ Error obteniendo predicciones IA:', error.message);

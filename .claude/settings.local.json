@@ -9,7 +9,9 @@
       "Bash(curl:*)",
       "Bash(npm run start:*)",
       "Bash(npm start)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git push:*)",
+      "Bash(wmic process where:*)"
     ],
     "deny": []
   }
