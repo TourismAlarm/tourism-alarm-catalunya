@@ -9,10 +9,33 @@ export default async function handler(req, res) {
     // STEP 1: Get REAL municipality coordinates from ICGC WFS
     try {
       console.log('🌍 Connecting to ICGC WFS for real municipality coordinates...');
-      const wfsUrl = 'https://geoserveis.icgc.cat/servei/catalunya/divisions-administratives/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=DA.Municipis&outputFormat=json&srsName=EPSG:4326';
+      // Try multiple WFS URLs for ICGC
+      const wfsUrls = [
+        'https://geoserveis.icgc.cat/servei/catalunya/divisions-administratives/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=DA.Municipis&outputFormat=application/json&srsName=EPSG:4326',
+        'https://geoserveis.icgc.cat/servei/catalunya/divisions-administratives/wfs?service=WFS&version=1.0.0&request=GetFeature&typename=DA.Municipis&outputFormat=GeoJSON&srsName=EPSG:4326',
+        'https://geoserveis.icgc.cat/servei/catalunya/divisions-administratives/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=DA.Municipis&outputFormat=json&srsName=EPSG:4326'
+      ];
       
-      const wfsResponse = await fetch(wfsUrl);
-      if (wfsResponse.ok) {
+      let wfsResponse = null;
+      let wfsUrl = null;
+      
+      for (const url of wfsUrls) {
+        try {
+          console.log(`🔗 Trying WFS URL: ${url.substring(0, 100)}...`);
+          wfsResponse = await fetch(url);
+          console.log(`📡 Response: ${wfsResponse.status} ${wfsResponse.statusText}`);
+          
+          if (wfsResponse.ok) {
+            wfsUrl = url;
+            break;
+          }
+        } catch (e) {
+          console.warn(`⚠️ URL failed: ${e.message}`);
+        }
+      }
+      
+      if (wfsResponse && wfsResponse.ok) {
+        console.log(`✅ Using successful WFS URL: ${wfsUrl}`);
         const geoJsonData = await wfsResponse.json();
         
         if (geoJsonData.features) {
@@ -58,10 +81,12 @@ export default async function handler(req, res) {
           console.log(`✅ Processed ${municipalities.length} municipalities with REAL ICGC coordinates`);
         }
       } else {
-        throw new Error(`ICGC WFS failed: ${wfsResponse.status}`);
+        console.error(`❌ All ICGC WFS URLs failed`);
+        throw new Error('ICGC WFS completely unavailable');
       }
     } catch (wfsError) {
-      console.warn('⚠️ ICGC WFS failed, falling back to Diputació Barcelona:', wfsError.message);
+      console.error('❌ ICGC WFS ERROR DETAILS:', wfsError.message);
+      console.warn('⚠️ Falling back to Diputació Barcelona...');
       
       // STEP 2: Fallback to Diputació Barcelona for Barcelona province
       try {
