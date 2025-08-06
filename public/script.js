@@ -391,12 +391,12 @@ class TourismAlarmApp {
                 throw new Error('No se pudieron generar puntos para el heatmap');
             }
             
-            // CONFIGURACIÓN HEATMAP PROFESIONAL para forma de Catalunya
+            // CONFIGURACIÓN HEATMAP PROFESIONAL para cobertura continua
             const heatmapConfig = {
-                radius: 15,          // Radio más pequeño para mejor definición de Catalunya
-                blur: 10,            // Menos difuminado para mantener forma geográfica
-                minOpacity: 0.05,    // Más transparente para suavizar bordes
-                maxZoom: 20,         // Permitir más zoom
+                radius: 25,          // Radio mayor para cobertura continua en todos los zooms
+                blur: 20,            // Más difuminado para evitar huecos al hacer zoom
+                minOpacity: 0.1,     // Más visible en zooms altos
+                maxZoom: 18,         // Zoom máximo optimizado para heatmap
                 max: 1.0,            // Intensidad máxima normalizada
                 gradient: {
                     // Gradiente meteorológico con más transparencia inicial
@@ -430,21 +430,40 @@ class TourismAlarmApp {
             
             console.log('✅ HEATMAP REAL creado - Difuminado continuo tipo meteorológico');
             
-            // Control de visibilidad según zoom (opcional)
+            // Control dinámico del radio según zoom para mantener cobertura continua
             this.map.off('zoomend'); // Limpiar eventos anteriores
             this.map.on('zoomend', () => {
-                const zoom = this.map.getZoom();
-                if (zoom < 5) {
-                    // Ocultar en zoom muy alejado para performance
-                    if (this.map.hasLayer(this.heatmapLayer)) {
-                        this.map.removeLayer(this.heatmapLayer);
-                    }
+                const currentZoom = this.map.getZoom();
+                let dynamicRadius = 25;
+                let dynamicBlur = 20;
+                
+                // Ajustar radio según zoom para mantener cobertura
+                if (currentZoom <= 7) {
+                    dynamicRadius = 30;
+                    dynamicBlur = 25;
+                } else if (currentZoom <= 9) {
+                    dynamicRadius = 25;
+                    dynamicBlur = 20;
+                } else if (currentZoom <= 11) {
+                    dynamicRadius = 30;
+                    dynamicBlur = 25;
+                } else if (currentZoom <= 13) {
+                    dynamicRadius = 35;
+                    dynamicBlur = 28;
                 } else {
-                    // Mostrar heatmap en zoom normal
-                    if (!this.map.hasLayer(this.heatmapLayer)) {
-                        this.heatmapLayer.addTo(this.map);
-                    }
+                    dynamicRadius = 40;
+                    dynamicBlur = 32;
                 }
+                
+                // Actualizar configuración del heatmap
+                if (this.heatmapLayer) {
+                    this.heatmapLayer.setOptions({
+                        radius: dynamicRadius,
+                        blur: dynamicBlur
+                    });
+                }
+                
+                console.log(`🎯 Zoom ${currentZoom}: radius=${dynamicRadius}, blur=${dynamicBlur}`);
             });
             
             this.updateStats();
