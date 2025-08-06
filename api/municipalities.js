@@ -48,61 +48,133 @@ export default async function handler(req, res) {
     // Generar municipios adicionales con coordenadas REALISTAS distribuidas por Catalunya
     // Usando zonas geográficas reales de Catalunya
     const cataloniaRegions = [
-      // Costa Brava (Girona coastal)
-      { centerLat: 42.1, centerLng: 3.1, radius: 0.3, province: 'Girona', comarca: 'Alt Empordà' },
-      { centerLat: 41.8, centerLng: 2.9, radius: 0.2, province: 'Girona', comarca: 'Selva' },
+      // GIRONA - Costa Brava completa
+      { centerLat: 42.26, centerLng: 3.17, radius: 0.15, province: 'Girona', comarca: 'Alt Empordà', weight: 0.8 },
+      { centerLat: 42.0, centerLng: 2.95, radius: 0.2, province: 'Girona', comarca: 'Baix Empordà', weight: 0.9 },
+      { centerLat: 41.75, centerLng: 2.85, radius: 0.18, province: 'Girona', comarca: 'Selva', weight: 1.0 },
+      { centerLat: 41.98, centerLng: 2.82, radius: 0.12, province: 'Girona', comarca: 'Gironès', weight: 0.7 },
+      { centerLat: 42.1, centerLng: 2.6, radius: 0.15, province: 'Girona', comarca: 'Pla de lEstany', weight: 0.5 },
+      { centerLat: 41.85, centerLng: 2.45, radius: 0.2, province: 'Girona', comarca: 'Garrotxa', weight: 0.6 },
       
-      // Pirineos
-      { centerLat: 42.4, centerLng: 1.5, radius: 0.4, province: 'Girona', comarca: 'Ripollès' },
-      { centerLat: 42.3, centerLng: 1.0, radius: 0.3, province: 'Lleida', comarca: 'Pallars' },
-      { centerLat: 42.5, centerLng: 0.8, radius: 0.2, province: 'Lleida', comarca: 'Val dAran' },
+      // GIRONA - Pirineos orientales
+      { centerLat: 42.38, centerLng: 2.15, radius: 0.25, province: 'Girona', comarca: 'Ripollès', weight: 0.4 },
+      { centerLat: 42.45, centerLng: 1.85, radius: 0.2, province: 'Girona', comarca: 'Cerdanya', weight: 0.5 },
       
-      // Área metropolitana Barcelona
-      { centerLat: 41.4, centerLng: 2.1, radius: 0.3, province: 'Barcelona', comarca: 'Barcelonès' },
-      { centerLat: 41.5, centerLng: 2.2, radius: 0.2, province: 'Barcelona', comarca: 'Vallès Oriental' },
-      { centerLat: 41.3, centerLng: 1.8, radius: 0.3, province: 'Barcelona', comarca: 'Baix Llobregat' },
+      // LLEIDA - Pirineos occidentales y centrales
+      { centerLat: 42.55, centerLng: 0.78, radius: 0.15, province: 'Lleida', comarca: 'Val dAran', weight: 0.3 },
+      { centerLat: 42.4, centerLng: 1.15, radius: 0.3, province: 'Lleida', comarca: 'Pallars Sobirà', weight: 0.4 },
+      { centerLat: 42.2, centerLng: 1.05, radius: 0.25, province: 'Lleida', comarca: 'Pallars Jussà', weight: 0.4 },
+      { centerLat: 42.35, centerLng: 1.6, radius: 0.2, province: 'Lleida', comarca: 'Alta Ribagorça', weight: 0.3 },
+      { centerLat: 42.0, centerLng: 1.4, radius: 0.25, province: 'Lleida', comarca: 'Solsonès', weight: 0.5 },
       
-      // Catalunya Central
-      { centerLat: 41.7, centerLng: 1.8, radius: 0.3, province: 'Barcelona', comarca: 'Bages' },
-      { centerLat: 41.9, centerLng: 2.2, radius: 0.2, province: 'Barcelona', comarca: 'Osona' },
+      // LLEIDA - Tierras centrales y sur
+      { centerLat: 41.62, centerLng: 0.62, radius: 0.25, province: 'Lleida', comarca: 'Segrià', weight: 0.8 },
+      { centerLat: 41.8, centerLng: 1.1, radius: 0.2, province: 'Lleida', comarca: 'Noguera', weight: 0.6 },
+      { centerLat: 41.5, centerLng: 1.0, radius: 0.2, province: 'Lleida', comarca: 'Urgell', weight: 0.6 },
+      { centerLat: 41.3, centerLng: 0.9, radius: 0.25, province: 'Lleida', comarca: 'Pla dUrgell', weight: 0.5 },
+      { centerLat: 41.2, centerLng: 1.15, radius: 0.2, province: 'Lleida', comarca: 'Segarra', weight: 0.4 },
+      { centerLat: 41.0, centerLng: 0.7, radius: 0.25, province: 'Lleida', comarca: 'Garrigues', weight: 0.4 },
       
-      // Tierras de Lleida
-      { centerLat: 41.6, centerLng: 0.6, radius: 0.4, province: 'Lleida', comarca: 'Segrià' },
-      { centerLat: 41.8, centerLng: 1.1, radius: 0.3, province: 'Lleida', comarca: 'Noguera' },
+      // BARCELONA - Área metropolitana ampliada
+      { centerLat: 41.385, centerLng: 2.173, radius: 0.12, province: 'Barcelona', comarca: 'Barcelonès', weight: 1.2 },
+      { centerLat: 41.54, centerLng: 2.1, radius: 0.15, province: 'Barcelona', comarca: 'Vallès Occidental', weight: 1.0 },
+      { centerLat: 41.55, centerLng: 2.35, radius: 0.18, province: 'Barcelona', comarca: 'Vallès Oriental', weight: 0.9 },
+      { centerLat: 41.32, centerLng: 1.85, radius: 0.2, province: 'Barcelona', comarca: 'Baix Llobregat', weight: 0.9 },
+      { centerLat: 41.53, centerLng: 2.44, radius: 0.15, province: 'Barcelona', comarca: 'Maresme', weight: 0.8 },
       
-      // Costa Daurada (Tarragona coastal)
-      { centerLat: 41.1, centerLng: 1.2, radius: 0.2, province: 'Tarragona', comarca: 'Tarragonès' },
-      { centerLat: 40.6, centerLng: 0.9, radius: 0.3, province: 'Tarragona', comarca: 'Montsià' },
+      // BARCELONA - Catalunya Central
+      { centerLat: 41.72, centerLng: 1.83, radius: 0.2, province: 'Barcelona', comarca: 'Bages', weight: 0.7 },
+      { centerLat: 41.9, centerLng: 2.2, radius: 0.18, province: 'Barcelona', comarca: 'Osona', weight: 0.6 },
+      { centerLat: 41.6, centerLng: 1.65, radius: 0.15, province: 'Barcelona', comarca: 'Anoia', weight: 0.6 },
+      { centerLat: 41.75, centerLng: 2.05, radius: 0.15, province: 'Barcelona', comarca: 'Moianès', weight: 0.4 },
+      { centerLat: 41.45, centerLng: 1.45, radius: 0.2, province: 'Barcelona', comarca: 'Alt Penedès', weight: 0.6 },
+      { centerLat: 41.25, centerLng: 1.55, radius: 0.15, province: 'Barcelona', comarca: 'Garraf', weight: 0.5 },
+      { centerLat: 41.6, centerLng: 2.0, radius: 0.15, province: 'Barcelona', comarca: 'Berguedà', weight: 0.5 },
       
-      // Interior Tarragona
-      { centerLat: 41.3, centerLng: 1.0, radius: 0.3, province: 'Tarragona', comarca: 'Alt Camp' },
-      { centerLat: 41.0, centerLng: 0.5, radius: 0.2, province: 'Tarragona', comarca: 'Terra Alta' }
+      // TARRAGONA - Costa Daurada completa
+      { centerLat: 41.119, centerLng: 1.245, radius: 0.15, province: 'Tarragona', comarca: 'Tarragonès', weight: 0.9 },
+      { centerLat: 41.07, centerLng: 1.06, radius: 0.15, province: 'Tarragona', comarca: 'Baix Camp', weight: 0.8 },
+      { centerLat: 40.62, centerLng: 0.87, radius: 0.2, province: 'Tarragona', comarca: 'Montsià', weight: 0.6 },
+      { centerLat: 40.8, centerLng: 0.72, radius: 0.18, province: 'Tarragona', comarca: 'Baix Ebre', weight: 0.5 },
+      
+      // TARRAGONA - Interior
+      { centerLat: 41.29, centerLng: 1.04, radius: 0.18, province: 'Tarragona', comarca: 'Alt Camp', weight: 0.5 },
+      { centerLat: 41.15, centerLng: 1.4, radius: 0.15, province: 'Tarragona', comarca: 'Conca de Barberà', weight: 0.4 },
+      { centerLat: 41.35, centerLng: 0.9, radius: 0.15, province: 'Tarragona', comarca: 'Priorat', weight: 0.4 },
+      { centerLat: 40.95, centerLng: 0.52, radius: 0.2, province: 'Tarragona', comarca: 'Terra Alta', weight: 0.4 },
+      { centerLat: 41.38, centerLng: 0.72, radius: 0.18, province: 'Tarragona', comarca: 'Ribera dEbre', weight: 0.4 }
     ];
     
-    // Generar municipios distribuidos realísticamente
+    // Generar municipios distribuidos realísticamente usando pesos
     let municipioId = 800001;
     while (municipalities.length < limit) {
-      const region = cataloniaRegions[Math.floor(Math.random() * cataloniaRegions.length)];
+      // Selección ponderada de región
+      const totalWeight = cataloniaRegions.reduce((sum, r) => sum + r.weight, 0);
+      let randomWeight = Math.random() * totalWeight;
+      let selectedRegion = cataloniaRegions[0];
       
-      // Generar coordenadas dentro de la región con distribución normal
+      for (const region of cataloniaRegions) {
+        randomWeight -= region.weight;
+        if (randomWeight <= 0) {
+          selectedRegion = region;
+          break;
+        }
+      }
+      
+      // Generar coordenadas con distribución gaussiana más realista
       const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * region.radius;
+      const gaussianRandom = (Math.random() + Math.random() + Math.random() + Math.random()) / 4; // Aproximación gaussiana
+      const distance = gaussianRandom * selectedRegion.radius;
       
-      const lat = region.centerLat + distance * Math.cos(angle);
-      const lng = region.centerLng + distance * Math.sin(angle);
+      const lat = selectedRegion.centerLat + distance * Math.cos(angle);
+      const lng = selectedRegion.centerLng + distance * Math.sin(angle);
       
-      // Validar que esté dentro de Catalunya
-      if (lat >= 40.5 && lat <= 42.9 && lng >= 0.1 && lng <= 3.3) {
+      // Validar que esté dentro de Catalunya con límites más precisos
+      if (lat >= 40.52 && lat <= 42.87 && lng >= 0.16 && lng <= 3.33) {
+        // Calcular datos más realistas según la comarca
+        const isCoastal = selectedRegion.comarca.includes('Empordà') || selectedRegion.comarca.includes('Selva') || 
+                         selectedRegion.comarca.includes('Tarragonès') || selectedRegion.comarca.includes('Baix Camp');
+        const isPyrenees = selectedRegion.comarca.includes('Pallars') || selectedRegion.comarca.includes('Aran') || 
+                          selectedRegion.comarca.includes('Ribagorça') || selectedRegion.comarca.includes('Cerdanya');
+        const isMetro = selectedRegion.comarca.includes('Barcelonès') || selectedRegion.comarca.includes('Vallès');
+        
+        let basePoblacio = 2000;
+        let baseVisitants = 15000;
+        let maxRatio = 8;
+        
+        if (isCoastal) {
+          basePoblacio = 5000;
+          baseVisitants = 150000;
+          maxRatio = 25;
+        } else if (isMetro) {
+          basePoblacio = 8000;
+          baseVisitants = 80000;
+          maxRatio = 12;
+        } else if (isPyrenees) {
+          basePoblacio = 800;
+          baseVisitants = 25000;
+          maxRatio = 15;
+        }
+        
+        const poblacio = Math.floor(Math.random() * basePoblacio * 3) + basePoblacio;
+        const visitants = Math.floor(Math.random() * baseVisitants * 2) + baseVisitants;
+        const ratio = visitants / poblacio;
+        
+        let alertLevel = 'low';
+        if (ratio > 20) alertLevel = 'critical';
+        else if (ratio > 10) alertLevel = 'high';
+        else if (ratio > 5) alertLevel = 'medium';
+        
         municipalities.push({
           id: municipioId.toString(),
-          name: `${region.comarca} ${municipalities.length + 1}`,
-          comarca: region.comarca,
-          provincia: region.province,
-          poblacio: Math.floor(Math.random() * 15000) + 500,
-          visitants_anuals: Math.floor(Math.random() * 300000) + 5000,
-          ratio_turistes: Math.random() * 15,
-          alertLevel: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-          lat: Math.round(lat * 10000) / 10000, // 4 decimals precision
+          name: `${selectedRegion.comarca} ${(municipalities.length % 50) + 1}`,
+          comarca: selectedRegion.comarca,
+          provincia: selectedRegion.province,
+          poblacio,
+          visitants_anuals: visitants,
+          ratio_turistes: Math.round(ratio * 100) / 100,
+          alertLevel,
+          lat: Math.round(lat * 10000) / 10000,
           lng: Math.round(lng * 10000) / 10000
         });
         municipioId++;
