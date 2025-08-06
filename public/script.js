@@ -239,6 +239,31 @@ class TourismAlarmApp {
                 console.warn(`⚠️ Muchos municipios SIN coordenadas: ${totalMunicipalities - withCoords}`);
             }
             
+            // DEBUGGING: Mostrar muestra de municipios para verificar coordenadas
+            console.log('🔍 MUESTRA DE MUNICIPIOS Y SUS COORDENADAS:');
+            this.allMunicipalities.slice(0, 5).forEach(m => {
+                console.log(`  ${m.name}: lat=${m.latitude}, lng=${m.longitude}, hasCoords=${m.hasCoordinates}`);
+            });
+            
+            // Verificar si tenemos coordenadas de Catalunya
+            const coordMunicipalities = this.allMunicipalities.filter(m => m.latitude && m.longitude);
+            if (coordMunicipalities.length > 0) {
+                const lats = coordMunicipalities.map(m => m.latitude);
+                const lngs = coordMunicipalities.map(m => m.longitude);
+                const dataBounds = {
+                    north: Math.max(...lats),
+                    south: Math.min(...lats),
+                    east: Math.max(...lngs),
+                    west: Math.min(...lngs)
+                };
+                
+                console.log('📍 BOUNDS DE LOS DATOS DE MUNICIPIOS:');
+                console.log(`  Norte: ${dataBounds.north.toFixed(4)}`);
+                console.log(`  Sur: ${dataBounds.south.toFixed(4)}`);
+                console.log(`  Este: ${dataBounds.east.toFixed(4)}`);
+                console.log(`  Oeste: ${dataBounds.west.toFixed(4)}`);
+            }
+            
             this.setApiStatus('online');
             this.updateStats();
             
@@ -322,6 +347,41 @@ class TourismAlarmApp {
             
             console.log(`📊 Procesados: ${municipiosProcessados} municipios, ${municipiosSinCoords} sin coordenadas`);
             console.log(`🔥 Puntos heatmap generados: ${heatmapPoints.length}`);
+            
+            // DEBUGGING: Mostrar muestra de coordenadas para verificar que son correctas
+            if (heatmapPoints.length > 0) {
+                console.log('🔍 MUESTRA DE COORDENADAS PARA DEBUG:');
+                heatmapPoints.slice(0, 10).forEach((point, i) => {
+                    console.log(`  ${i+1}. lat=${point[0].toFixed(4)}, lng=${point[1].toFixed(4)}, intensity=${point[2].toFixed(3)}`);
+                });
+                
+                // Calcular bounds para verificar que cubren Catalunya
+                const lats = heatmapPoints.map(p => p[0]);
+                const lngs = heatmapPoints.map(p => p[1]);
+                const bounds = {
+                    north: Math.max(...lats),
+                    south: Math.min(...lats),
+                    east: Math.max(...lngs),
+                    west: Math.min(...lngs)
+                };
+                
+                console.log('📍 BOUNDS DEL HEATMAP:');
+                console.log(`  Norte: ${bounds.north.toFixed(4)} (debería ser ~42.9)`);
+                console.log(`  Sur: ${bounds.south.toFixed(4)} (debería ser ~40.5)`);
+                console.log(`  Este: ${bounds.east.toFixed(4)} (debería ser ~3.3)`);
+                console.log(`  Oeste: ${bounds.west.toFixed(4)} (debería ser ~0.1)`);
+                
+                // Verificar si parece Catalunya
+                const isValidBounds = bounds.north <= 42.9 && bounds.south >= 40.5 && 
+                                     bounds.east <= 3.3 && bounds.west >= 0.1;
+                                     
+                if (isValidBounds) {
+                    console.log('✅ Las coordenadas parecen estar en Catalunya');
+                } else {
+                    console.warn('⚠️ LAS COORDENADAS NO PARECEN SER DE CATALUNYA!');
+                    console.warn('   Esto explicaría por qué se ve como un cuadrado');
+                }
+            }
             
             if (heatmapPoints.length === 0) {
                 throw new Error('No se pudieron generar puntos para el heatmap');
