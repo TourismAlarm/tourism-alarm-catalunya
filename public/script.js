@@ -259,17 +259,17 @@ class TourismAlarmApp {
         }
 
         try {
-            console.log('🔥 Creando heatmap con análisis IA...');
+            console.log('🗺️ Cargando polígonos REALES de municipios Catalunya desde ICGC...');
             
-            // Limpiar eventos anteriores
+            // Limpiar capas anteriores
             this.map.off('zoomend');
             
-            // Remover heatmap anterior
+            // Remover capa anterior (ahora será de polígonos, no heatmap)
             if (this.heatmapLayer) {
                 this.map.removeLayer(this.heatmapLayer);
             }
             
-            // Obtener análisis IA enriquecido para municipios clave
+            // Obtener análisis IA enriquecido para determinar colores
             const realPredictions = await this.enrichMunicipalitiesWithAI();
             
             // Actualizar UI con predicciones reales obtenidas
@@ -277,102 +277,148 @@ class TourismAlarmApp {
                 this.updatePredictionsUI(realPredictions);
             }
             
-            // Generar puntos para heatmap - PROCESAR TODOS LOS MUNICIPIOS CON COORDENADAS
-            const puntos = [];
-            let municipiosProcessed = 0;
-            let municipiosSinCoords = 0;
+            // Cargar geometrías REALES de municipios desde ICGC WFS
+            console.log('📡 Conectando a ICGC WFS para geometrías oficiales...');
             
-            this.allMunicipalities.forEach(m => {
-                // Verificar si tiene coordenadas válidas
-                if (m.latitude && m.longitude && !isNaN(m.latitude) && !isNaN(m.longitude)) {
-                    municipiosProcessed++;
-                    
-                    // Calcular intensidad basada en análisis IA + datos estáticos
-                    let intensidad = this.calculateAIIntensity(m);
-                    
-                    // Generar puntos para cada municipio con coordenadas reales
-                    const numPuntos = Math.floor(intensidad * 25) + 3; // Balanceado para 947 municipios
-                    
-                    // Usar coordenadas exactas del municipio con variación mínima
-                    for (let i = 0; i < numPuntos; i++) {
-                        // Variación muy pequeña alrededor del municipio real
-                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.015;
-                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.015;
+            try {
+                // URL oficial ICGC WFS para municipios Catalunya
+                const wfsUrl = 'https://geoserveis.icgc.cat/servei/catalunya/divisions-administratives/wfs?service=WFS&version=1.1.0&request=GetFeature&typename=DA.Municipis&outputFormat=json&srsName=EPSG:4326';
+                
+                console.log('🌐 Fetching:', wfsUrl);
+                
+                const response = await fetch(wfsUrl);
+                if (!response.ok) {
+                    throw new Error(`ICGC WFS error: ${response.status}`);
+                }
+                
+                const geoJsonData = await response.json();
+                console.log(`✅ Cargados ${geoJsonData.features?.length || 0} polígonos de municipios REALES`);
+                
+                // Crear mapa de intensidades por municipio basado en IA
+                const intensityMap = {};
+                this.allMunicipalities.forEach(m => {
+                    if (m.name) {
+                        intensityMap[m.name.toLowerCase()] = this.calculateAIIntensity(m);
+                    }
+                });
+                
+                // Crear capa de polígonos con colores basados en IA
+                this.heatmapLayer = L.geoJSON(geoJsonData, {
+                    style: (feature) => {
+                        // Obtener nombre del municipio del GeoJSON
+                        const municipalityName = feature.properties.MUNICIPI || feature.properties.nom || feature.properties.name || '';
+                        const intensity = intensityMap[municipalityName.toLowerCase()] || 0.3;
                         
-                        // Validar que las coordenadas estén dentro de Catalunya aproximadamente
-                        if (finalLat >= 40.5 && finalLat <= 42.9 && finalLng >= 0.1 && finalLng <= 3.3) {
-                            const variacion = 0.8 + Math.random() * 0.4;
-                            puntos.push([finalLat, finalLng, intensidad * variacion]);
+                        // Determinar color basado en intensidad IA
+                        let color = '#00FF00'; // Verde por defecto
+                        if (intensity >= 0.85) color = '#FF0000';      // Rojo crítico
+                        else if (intensity >= 0.7) color = '#FF4500';  // Rojo-naranja
+                        else if (intensity >= 0.5) color = '#FFFF00';  // Amarillo
+                        else if (intensity >= 0.25) color = '#7FFF00'; // Lima
+                        
+                        return {
+                            fillColor: color,
+                            weight: 1,
+                            opacity: 0.8,
+                            color: '#333333',
+                            fillOpacity: 0.6
+                        };
+                    },
+                    onEachFeature: (feature, layer) => {
+                        // Popup con información del municipio + IA
+                        const municipalityName = feature.properties.MUNICIPI || feature.properties.nom || 'Municipio';
+                        const intensity = intensityMap[municipalityName.toLowerCase()] || 0;
+                        const riskLevel = intensity >= 0.85 ? 'CRÍTICO' : 
+                                        intensity >= 0.7 ? 'ALTO' : 
+                                        intensity >= 0.5 ? 'MEDIO' : 
+                                        intensity >= 0.25 ? 'BAJO-MEDIO' : 'BAJO';
+                        
+                        layer.bindPopup(`
+                            <div style="font-family: 'Segoe UI', sans-serif;">
+                                <h3 style="margin:0;color:#2c3e50;">${municipalityName}</h3>
+                                <p style="margin:5px 0;"><strong>🎯 Nivel IA:</strong> ${riskLevel}</p>
+                                <p style="margin:5px 0;"><strong>📊 Intensidad:</strong> ${(intensity * 100).toFixed(1)}%</p>
+                                <small style="color:#666;">Datos: ICGC + IA Analysis</small>
+                            </div>
+                        `);
+                        
+                        // Log para municipios principales
+                        if (['Barcelona', 'Girona', 'Tarragona', 'Lleida'].includes(municipalityName)) {
+                            console.log(`🏛️ ${municipalityName}: Intensidad IA=${intensity.toFixed(3)}, Color=${color}`);
                         }
                     }
-                    
-                    // Log para municipios importantes
-                    if (m.name && ['Barcelona', 'Girona', 'Tarragona', 'Lleida'].includes(m.name)) {
-                        console.log(`📍 ${m.name}: lat=${m.latitude}, lng=${m.longitude}, intensidad=${intensidad.toFixed(2)}, puntos=${numPuntos}`);
-                    }
-                } else {
-                    municipiosSinCoords++;
-                }
-            });
-            
-            console.log(`🗺️ Heatmap: ${municipiosProcessed} municipios procesados, ${municipiosSinCoords} sin coordenadas`);
-            console.log(`🔥 Total puntos generados: ${puntos.length}`);
-            
-            console.log(`🗺️ Generando heatmap con ${puntos.length} puntos`);
-            
-            // Configuración heatmap optimizada para 947 municipios
-            const heatmapConfig = {
-                radius: 15,      // Reducido para manejar más municipios
-                blur: 10,        // Menos blur para más precisión
-                minOpacity: 0.2, // Más visible
-                maxZoom: 18,     // Permitir más zoom
-                max: 1.0,        // Usar todo el rango de intensidad
-                gradient: {
-                    0.0: '#00FF00',  // Verde brillante - bajo riesgo
-                    0.25: '#7FFF00', // Lima - riesgo bajo-medio
-                    0.5: '#FFFF00',  // Amarillo - riesgo medio
-                    0.7: '#FFA500',  // Naranja - riesgo alto
-                    0.85: '#FF4500', // Rojo-naranja - riesgo crítico
-                    1.0: '#FF0000'   // Rojo puro - saturación máxima
-                }
-            };
-            
-            console.log('📊 Configuración heatmap:', {
-                puntos: puntos.length,
-                municipios: municipiosProcessed,
-                config: heatmapConfig
-            });
-            
-            this.heatmapLayer = L.heatLayer(puntos, heatmapConfig).addTo(this.map);
-            
-            console.log('✅ Heatmap creado correctamente');
-            
-            // Control de visibilidad heatmap según zoom
-            this.map.on('zoomend', () => {
-                const zoom = this.map.getZoom();
-                console.log(`🔍 Zoom level: ${zoom}`);
+                }).addTo(this.map);
                 
-                if (zoom < 6) {
-                    // Ocultar heatmap en zoom out extremo
-                    if (this.map.hasLayer(this.heatmapLayer)) {
-                        this.map.removeLayer(this.heatmapLayer);
-                        console.log('🙈 Heatmap oculto (zoom < 6)');
-                    }
-                } else {
-                    // Mostrar heatmap en zoom normal
-                    if (!this.map.hasLayer(this.heatmapLayer)) {
-                        this.heatmapLayer.addTo(this.map);
-                        console.log('👁️ Heatmap visible (zoom >= 6)');
-                    }
-                }
-            });
+                console.log('✅ Polígonos REALES de municipios cargados con colores IA');
+                
+            } catch (wfsError) {
+                console.warn('⚠️ Error WFS, usando fallback GeoJSON desde ICGC Datacloud:', wfsError);
+                
+                // Fallback: descargar GeoJSON estático de ICGC
+                const fallbackUrl = 'https://datacloud.icgc.cat/datacloud/divisions-administratives/json/divisions-administratives-v2r1-20250101.zip';
+                console.log('📦 Intentando descargar GeoJSON desde:', fallbackUrl);
+                
+                // Por ahora, crear polígonos aproximados basados en nuestros datos
+                this.createApproximatePolygons();
+            }
             
             this.updateStats();
             
         } catch (error) {
-            console.error('❌ Error creating heatmap:', error);
-            this.showError('Error creando heatmap: ' + error.message);
+            console.error('❌ Error creating municipality polygons:', error);
+            this.showError('Error cargando municipios: ' + error.message);
+            
+            // Fallback final: polígonos aproximados
+            this.createApproximatePolygons();
         }
+    }
+    
+    createApproximatePolygons() {
+        console.log('🔧 Creando polígonos aproximados como fallback...');
+        
+        const polygons = [];
+        
+        this.allMunicipalities.forEach(m => {
+            if (m.latitude && m.longitude && !isNaN(m.latitude) && !isNaN(m.longitude)) {
+                const intensity = this.calculateAIIntensity(m);
+                
+                // Crear polígono cuadrado aproximado alrededor del municipio
+                const offset = 0.02; // Aproximadamente 2km
+                const bounds = [
+                    [m.latitude - offset, m.longitude - offset],
+                    [m.latitude - offset, m.longitude + offset], 
+                    [m.latitude + offset, m.longitude + offset],
+                    [m.latitude + offset, m.longitude - offset]
+                ];
+                
+                // Color basado en intensidad IA
+                let color = '#00FF00';
+                if (intensity >= 0.85) color = '#FF0000';
+                else if (intensity >= 0.7) color = '#FF4500';
+                else if (intensity >= 0.5) color = '#FFFF00'; 
+                else if (intensity >= 0.25) color = '#7FFF00';
+                
+                const polygon = L.polygon(bounds, {
+                    fillColor: color,
+                    weight: 1,
+                    opacity: 0.7,
+                    color: '#333333',
+                    fillOpacity: 0.5
+                }).bindPopup(`
+                    <div style="font-family: 'Segoe UI', sans-serif;">
+                        <h3 style="margin:0;color:#2c3e50;">${m.name}</h3>
+                        <p><strong>🎯 Intensidad IA:</strong> ${(intensity * 100).toFixed(1)}%</p>
+                        <small style="color:#666;">Polígono aproximado</small>
+                    </div>
+                `);
+                
+                polygons.push(polygon);
+            }
+        });
+        
+        // Crear grupo de capas
+        this.heatmapLayer = L.layerGroup(polygons).addTo(this.map);
+        console.log(`✅ Creados ${polygons.length} polígonos aproximados con colores IA`);
     }
 
     // Funciones auxiliares
@@ -413,17 +459,74 @@ class TourismAlarmApp {
     }
 
     setupRealTimeUpdates() {
-        // Actualización cada 5 minutos con análisis IA
-        setInterval(() => {
-            console.log('🔄 Actualización automática con análisis IA...');
-            this.refreshData();
-        }, 5 * 60 * 1000);
+        console.log('⏰ Configurando actualizaciones optimizadas para MVP...');
         
-        // Análisis IA más profundo cada 15 minutos
+        // Actualización completa cada 6 horas (datos + geometrías)
+        const dataUpdateInterval = 6 * 60 * 60 * 1000; // 6 horas
+        setInterval(async () => {
+            console.log('🔄 Actualización completa cada 6h - Recargando datos y geometrías...');
+            try {
+                await this.loadMunicipalitiesData();
+                await this.createHeatmap();
+                this.showNotification('🔄 Datos actualizados automáticamente', 'success');
+                console.log('✅ Actualización completa de 6h completada');
+            } catch (error) {
+                console.error('❌ Error en actualización de 6h:', error);
+                this.showNotification('⚠️ Error actualizando datos', 'error');
+            }
+        }, dataUpdateInterval);
+        
+        // Actualización de predicciones IA cada 1 hora (solo cálculos)
+        const predictionUpdateInterval = 60 * 60 * 1000; // 1 hora
         setInterval(() => {
-            console.log('🧠 Análisis IA profundo programado...');
+            console.log('🧠 Actualización predicciones IA cada 1h...');
+            this.refreshData();
+        }, predictionUpdateInterval);
+        
+        // Análisis IA profundo cada 3 horas para municipios clave
+        const deepAnalysisInterval = 3 * 60 * 60 * 1000; // 3 horas
+        setInterval(() => {
+            console.log('🔬 Análisis IA profundo cada 3h...');
             this.runDeepAIAnalysis();
-        }, 15 * 60 * 1000);
+        }, deepAnalysisInterval);
+        
+        console.log('✅ Actualizaciones configuradas: datos/geometrías cada 6h, predicciones cada 1h, análisis profundo cada 3h');
+    }
+    
+    showNotification(message, type = 'info') {
+        // Crear notification element si no existe
+        let notification = document.getElementById('systemNotification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'systemNotification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #2c3e50;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                z-index: 9999;
+                font-family: 'Segoe UI', sans-serif;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                max-width: 300px;
+            `;
+            document.body.appendChild(notification);
+        }
+        
+        // Actualizar mensaje y mostrar
+        notification.textContent = message;
+        notification.style.background = type === 'error' ? '#e74c3c' : 
+                                       type === 'success' ? '#27ae60' : '#2c3e50';
+        notification.style.opacity = '1';
+        
+        // Auto-hide después de 4 segundos
+        setTimeout(() => {
+            notification.style.opacity = '0';
+        }, 4000);
     }
 
     async runDeepAIAnalysis() {
