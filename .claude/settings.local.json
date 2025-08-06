@@ -11,7 +11,13 @@
       "Bash(npm start)",
       "Bash(python:*)",
       "Bash(git push:*)",
-      "Bash(wmic process where:*)"
+      "Bash(wmic process where:*)",
+      "Bash(find:*)",
+      "Bash(vercel:*)",
+      "Bash(npx vercel:*)",
+      "WebFetch(domain:api.idescat.cat)",
+      "WebFetch(domain:dadesobertes.diba.cat)",
+      "WebFetch(domain:do.diba.cat)"
     ],
     "deny": []
   }

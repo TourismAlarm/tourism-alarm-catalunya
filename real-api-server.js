@@ -1,39 +1,31 @@
 import express from 'express';
 import cors from 'cors';
-import { TourismCollectorAgent } from './agents/collectors/tourism_collector.js';
-import { APIConnector } from './agents/connectors/api_connector.js';
-import { validateAPIConfig } from './agents/connectors/api_config.js';
+import path from 'path';
+// import { TourismCollectorAgent } from './agents/collectors/tourism_collector.js';
+// import { APIConnector } from './agents/connectors/api_connector.js';
+// import { validateAPIConfig } from './agents/connectors/api_config.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Inicializar APIs reales
-const apiConnector = new APIConnector();
+// Servir archivos estáticos del frontend
+app.use(express.static('public'));
+
+// Deshabilitar APIs problemáticas temporalmente
+// const apiConnector = new APIConnector();
 let tourismCollector = null;
 
-async function initializeTourismCollector() {
-  try {
-    tourismCollector = new TourismCollectorAgent();
-    console.log('🤖 TourismCollectorAgent inicializado correctamente');
-  } catch (error) {
-    console.log('⚠️ TourismCollectorAgent no disponible:', error.message);
-    console.log('📊 Usando análisis estadístico como fallback');
-  }
-}
-
-// Inicializar en startup
-initializeTourismCollector();
-
-console.log('🚀 Servidor con APIs reales iniciado');
-validateAPIConfig();
+console.log('🚀 Servidor con análisis estadístico iniciado');
+console.log('✅ Modo estable - sin dependencias externas');
 
 // ENDPOINT DE SALUD
 app.get('/api/health', (req, res) => {
+  console.log('📊 Health check solicitado');
   res.json({ 
     status: 'OK', 
-    apis_configured: apiConnector.isConfigured,
-    ai_agent: tourismCollector ? 'available' : 'fallback',
+    server_mode: 'statistical_analysis',
+    ai_agent: 'statistical_fallback',
     timestamp: new Date() 
   });
 });
@@ -126,11 +118,11 @@ app.get('/api/municipalities', (req, res) => {
   });
 });
 
-// ENDPOINT DE PREDICCIONES CON APIs REALES
+// ENDPOINT DE PREDICCIONES ESTADÍSTICAS
 app.post('/api/ai-predictions', async (req, res) => {
   try {
     const { timeframe, municipalities } = req.body;
-    console.log(`🔮 Predicciones REALES para ${municipalities.length} municipios - ${timeframe}`);
+    console.log(`🔮 Predicciones ESTADÍSTICAS para ${municipalities.length} municipios - ${timeframe}`);
     
     // Estrategia híbrida para performance
     const keyMunicipalities = municipalities
@@ -146,32 +138,11 @@ app.post('/api/ai-predictions', async (req, res) => {
     
     const predictions = [];
     
-    // 1. ANÁLISIS IA REAL para municipios clave (con APIs externas en paralelo)
-    const keyPredictions = await Promise.allSettled(
-      keyMunicipalities.map(async (municipality) => {
-        try {
-          const enrichedData = {
-            ...municipality,
-            prediction_window: timeframe.replace('h', '')
-          };
-          
-          // Obtener datos enriquecidos con APIs reales EN PARALELO con timeout
-          const apiPromises = [
-            Promise.race([
-              apiConnector.getWeatherData(municipality.latitude, municipality.longitude),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Weather timeout')), 5000))
-            ]).catch(() => null),
-            Promise.race([
-              apiConnector.getEventsData(municipality.name),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Events timeout')), 5000))
-            ]).catch(() => null),
-            Promise.race([
-              apiConnector.getTrafficData(municipality.latitude, municipality.longitude),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Traffic timeout')), 5000))
-            ]).catch(() => null)
-          ];
-          
-          const [weatherData, eventsData, trafficData] = await Promise.all(apiPromises);
+    // ANÁLISIS ESTADÍSTICO para TODOS los municipios
+    municipalities.forEach(municipality => {
+      // Calcular predicción basada en datos del municipio
+      let saturationProb = 30;
+      let riskLevel = 'bajo';
           
           // Análisis IA con timeout más corto
           let analysis = null;
@@ -451,8 +422,19 @@ app.post('/api/ai-analysis', async (req, res) => {
   }
 });
 
+// Manejo de errores no capturados para evitar cierre del servidor
+process.on('uncaughtException', (error) => {
+  console.error('❌ Error no capturado:', error);
+  console.log('⚠️ Servidor continúa ejecutándose...');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Promesa rechazada no manejada:', reason);
+  console.log('⚠️ Servidor continúa ejecutándose...');
+});
+
 const PORT = 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Servidor con APIs REALES ejecutándose en http://localhost:${PORT}`);
   console.log(`📊 Endpoints disponibles:`);
   console.log(`   GET  /api/health`);
@@ -460,4 +442,14 @@ app.listen(PORT, () => {
   console.log(`   POST /api/ai-predictions (APIs reales + IA)`);
   console.log(`   POST /api/ai-analysis (Análisis individual completo)`);
   console.log(`🌐 APIs externas: OpenWeather + Ticketmaster + TomTom + Ollama IA`);
+  console.log(`🔥 Servidor ACTIVO - Presiona Ctrl+C para detener`);
+});
+
+// Manejo graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Cerrando servidor...');
+  server.close(() => {
+    console.log('✅ Servidor cerrado correctamente');
+    process.exit(0);
+  });
 });

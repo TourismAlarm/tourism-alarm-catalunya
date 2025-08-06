@@ -200,8 +200,19 @@ class TourismAlarmApp {
 
             console.log(`✅ Cargados ${result.data.length} municipios`);
             
-            // Añadir coordenadas a los datos
+            // Mapear coordenadas de la API (lat/lng) a formato interno (latitude/longitude)
             this.allMunicipalities = result.data.map(municipality => {
+                // PRIORIDAD 1: Usar coordenadas de la API si están disponibles
+                if (municipality.lat && municipality.lng) {
+                    return {
+                        ...municipality,
+                        latitude: municipality.lat,
+                        longitude: municipality.lng,
+                        hasCoordinates: true
+                    };
+                }
+                
+                // PRIORIDAD 2: Fallback al diccionario COORDS para municipios sin coordenadas en API
                 const coords = this.COORDS[municipality.id];
                 if (coords) {
                     return {
@@ -211,8 +222,22 @@ class TourismAlarmApp {
                         hasCoordinates: true
                     };
                 }
-                return municipality;
+                
+                // Si no hay coordenadas, marcarlo pero no descartar
+                return {
+                    ...municipality,
+                    hasCoordinates: false
+                };
             });
+            
+            // Log estadísticas de coordenadas
+            const withCoords = this.allMunicipalities.filter(m => m.hasCoordinates).length;
+            const totalMunicipalities = this.allMunicipalities.length;
+            console.log(`📍 Coordenadas: ${withCoords}/${totalMunicipalities} municipios tienen coordenadas`);
+            
+            if (withCoords < totalMunicipalities * 0.9) {
+                console.warn(`⚠️ Muchos municipios SIN coordenadas: ${totalMunicipalities - withCoords}`);
+            }
             
             this.setApiStatus('online');
             this.updateStats();
@@ -252,47 +277,71 @@ class TourismAlarmApp {
                 this.updatePredictionsUI(realPredictions);
             }
             
-            // Generar puntos para heatmap
+            // Generar puntos para heatmap - PROCESAR TODOS LOS MUNICIPIOS CON COORDENADAS
             const puntos = [];
+            let municipiosProcessed = 0;
+            let municipiosSinCoords = 0;
             
             this.allMunicipalities.forEach(m => {
-                if (m.latitude && m.longitude) {
+                // Verificar si tiene coordenadas válidas
+                if (m.latitude && m.longitude && !isNaN(m.latitude) && !isNaN(m.longitude)) {
+                    municipiosProcessed++;
+                    
                     // Calcular intensidad basada en análisis IA + datos estáticos
                     let intensidad = this.calculateAIIntensity(m);
                     
-                    // Generar puntos SOLO en coordenadas de municipios reales (sin validaciones complejas)
-                    const numPuntos = Math.floor(intensidad * 30) + 5; // Menos puntos, más precisos
+                    // Generar puntos para cada municipio con coordenadas reales
+                    const numPuntos = Math.floor(intensidad * 25) + 3; // Balanceado para 947 municipios
                     
                     // Usar coordenadas exactas del municipio con variación mínima
                     for (let i = 0; i < numPuntos; i++) {
                         // Variación muy pequeña alrededor del municipio real
-                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.02; // Reducido de 0.08 a 0.02
-                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.02;
+                        const finalLat = m.latitude + (Math.random() - 0.5) * 0.015;
+                        const finalLng = m.longitude + (Math.random() - 0.5) * 0.015;
                         
-                        const variacion = 0.9 + Math.random() * 0.2;
-                        puntos.push([finalLat, finalLng, intensidad * variacion]);
+                        // Validar que las coordenadas estén dentro de Catalunya aproximadamente
+                        if (finalLat >= 40.5 && finalLat <= 42.9 && finalLng >= 0.1 && finalLng <= 3.3) {
+                            const variacion = 0.8 + Math.random() * 0.4;
+                            puntos.push([finalLat, finalLng, intensidad * variacion]);
+                        }
                     }
+                    
+                    // Log para municipios importantes
+                    if (m.name && ['Barcelona', 'Girona', 'Tarragona', 'Lleida'].includes(m.name)) {
+                        console.log(`📍 ${m.name}: lat=${m.latitude}, lng=${m.longitude}, intensidad=${intensidad.toFixed(2)}, puntos=${numPuntos}`);
+                    }
+                } else {
+                    municipiosSinCoords++;
                 }
             });
             
+            console.log(`🗺️ Heatmap: ${municipiosProcessed} municipios procesados, ${municipiosSinCoords} sin coordenadas`);
+            console.log(`🔥 Total puntos generados: ${puntos.length}`);
+            
             console.log(`🗺️ Generando heatmap con ${puntos.length} puntos`);
             
-            // Crear heatmap con configuración estándar
+            // Configuración heatmap optimizada para 947 municipios
             const heatmapConfig = {
-                radius: 25,
-                blur: 15,
-                minOpacity: 0.1,
-                maxZoom: 16,
-                max: 0.8, // Intensidad máxima fija
+                radius: 15,      // Reducido para manejar más municipios
+                blur: 10,        // Menos blur para más precisión
+                minOpacity: 0.2, // Más visible
+                maxZoom: 18,     // Permitir más zoom
+                max: 1.0,        // Usar todo el rango de intensidad
                 gradient: {
-                    0.0: '#006400',  // Verde oscuro
-                    0.3: '#32CD32',  // Verde lima  
-                    0.5: '#FFD700',  // Amarillo oro
-                    0.7: '#FF8C00',  // Naranja oscuro
-                    0.9: '#FF4500',  // Rojo naranja
-                    1.0: '#DC143C'   // Crimson (rojo controlado)
+                    0.0: '#00FF00',  // Verde brillante - bajo riesgo
+                    0.25: '#7FFF00', // Lima - riesgo bajo-medio
+                    0.5: '#FFFF00',  // Amarillo - riesgo medio
+                    0.7: '#FFA500',  // Naranja - riesgo alto
+                    0.85: '#FF4500', // Rojo-naranja - riesgo crítico
+                    1.0: '#FF0000'   // Rojo puro - saturación máxima
                 }
             };
+            
+            console.log('📊 Configuración heatmap:', {
+                puntos: puntos.length,
+                municipios: municipiosProcessed,
+                config: heatmapConfig
+            });
             
             this.heatmapLayer = L.heatLayer(puntos, heatmapConfig).addTo(this.map);
             
