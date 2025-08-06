@@ -245,7 +245,12 @@ class TourismAlarmApp {
             }
             
             // Obtener análisis IA enriquecido para municipios clave
-            await this.enrichMunicipalitiesWithAI();
+            const realPredictions = await this.enrichMunicipalitiesWithAI();
+            
+            // Actualizar UI con predicciones reales obtenidas
+            if (realPredictions) {
+                this.updatePredictionsUI(realPredictions);
+            }
             
             // Generar puntos para heatmap
             const puntos = [];
@@ -314,9 +319,6 @@ class TourismAlarmApp {
             });
             
             this.updateStats();
-            
-            // Actualizar predicciones UI después de crear heatmap
-            this.updatePredictionsUI();
             
         } catch (error) {
             console.error('❌ Error creating heatmap:', error);
@@ -491,7 +493,62 @@ class TourismAlarmApp {
         const predPirineos = document.getElementById('predPirineos');
         const generalTrend = document.getElementById('generalTrend');
 
-        // Obtener predicciones del heatmap actual (si las hay)
+        // PRIMERA PRIORIDAD: Usar predicciones reales de la API si están disponibles
+        if (predictions && predictions.predictions && predictions.predictions.length > 0) {
+            console.log('📊 Usando predicciones REALES de la API');
+            
+            const apiPredictions = predictions.predictions;
+            
+            // Buscar predicciones específicas en datos reales
+            const barcelonaPred = apiPredictions.find(p => 
+                p.municipality && p.municipality.toLowerCase().includes('barcelona')
+            );
+            const costaPred = apiPredictions.find(p => 
+                p.municipality && ['lloret', 'blanes', 'roses', 'salou', 'cambrils'].some(city => 
+                    p.municipality.toLowerCase().includes(city)
+                )
+            );
+            const pirineosPred = apiPredictions.find(p => 
+                p.municipality && ['lleida', 'girona', 'puigcerdà'].some(city => 
+                    p.municipality.toLowerCase().includes(city)
+                )
+            );
+            
+            if (predBarcelona && barcelonaPred) {
+                predBarcelona.textContent = `${barcelonaPred.expected_flow} (${barcelonaPred.saturation_probability}%)`;
+                predBarcelona.className = `prediction-value ${barcelonaPred.risk_level}`;
+            }
+            
+            if (predCosta && costaPred) {
+                predCosta.textContent = `${costaPred.expected_flow} (${costaPred.saturation_probability}%)`;
+                predCosta.className = `prediction-value ${costaPred.risk_level}`;
+            } else if (predCosta) {
+                // Usar promedio de las predicciones disponibles para costa
+                const avgSaturation = Math.floor(apiPredictions.reduce((acc, p) => acc + p.saturation_probability, 0) / apiPredictions.length);
+                predCosta.textContent = `Medio (${avgSaturation}%)`;
+                predCosta.className = `prediction-value medio`;
+            }
+            
+            if (predPirineos && pirineosPred) {
+                predPirineos.textContent = `${pirineosPred.expected_flow} (${pirineosPred.saturation_probability}%)`;
+                predPirineos.className = `prediction-value ${pirineosPred.risk_level}`;
+            } else if (predPirineos) {
+                // Usar datos más conservadores para Pirineos
+                const avgSaturation = Math.floor(apiPredictions.reduce((acc, p) => acc + p.saturation_probability, 0) / apiPredictions.length * 0.7);
+                predPirineos.textContent = `Bajo (${avgSaturation}%)`;
+                predPirineos.className = `prediction-value bajo`;
+            }
+            
+            if (generalTrend && predictions.global_trends) {
+                generalTrend.textContent = `${predictions.global_trends.overall_risk} - IA Real (${Math.floor(predictions.confidence * 100)}%)`;
+                generalTrend.className = `prediction-value ${predictions.global_trends.overall_risk}`;
+            }
+            
+            console.log('✅ UI actualizada con predicciones REALES de la API');
+            return;
+        }
+
+        // SEGUNDA PRIORIDAD: Obtener predicciones del heatmap actual (si las hay)
         const currentPredictions = this.getCurrentPredictionsFromMunicipalities();
         
         if (currentPredictions && currentPredictions.length > 0) {
@@ -722,6 +779,9 @@ class TourismAlarmApp {
                 // Asegurar que todos los municipios tengan predicciones
                 this.ensureMunicipalitiesHavePredictions();
                 
+                // Devolver las predicciones obtenidas para la UI
+                return predictions;
+                
             } else {
                 console.log('ℹ️ Usando análisis individual de municipios clave...');
                 await this.fallbackToIndividualAnalysis();
@@ -734,6 +794,9 @@ class TourismAlarmApp {
             // Asegurar que TODOS los municipios tengan al menos predicción básica
             this.ensureMunicipalitiesHavePredictions();
         }
+        
+        // Devolver null si no hay predicciones reales
+        return null;
     }
 
     async getPredictionsFromAI(timeframe) {
