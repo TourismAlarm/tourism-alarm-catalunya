@@ -319,14 +319,40 @@ class TourismAlarmApp {
                     const lng = municipality.longitude;
                     
                     if (lat >= 40.5 && lat <= 42.9 && lng >= 0.1 && lng <= 3.3) {
-                        // Generar múltiples puntos alrededor del municipio para heatmap suave
-                        const numPoints = Math.max(3, Math.floor(aiIntensity * 20) + 5);
+                        // Calcular puntos y área de cobertura según superficie real del municipio
+                        const superficie = municipality.superficie_km2 || 10; // Default 10 km²
+                        
+                        // Más superficie = más puntos para cobertura completa
+                        const numPoints = Math.max(5, Math.floor(Math.sqrt(superficie) * 3) + Math.floor(aiIntensity * 10));
+                        
+                        // Calcular variación según superficie: más km² = más variación
+                        // Fórmula: raíz cuadrada de la superficie para distribución realista
+                        const variation = Math.min(0.08, Math.max(0.005, Math.sqrt(superficie) * 0.008));
                         
                         for (let i = 0; i < numPoints; i++) {
-                            // Variación pequeña para crear gradiente suave
-                            const variation = 0.01; // ~1km de variación
-                            const pointLat = lat + (Math.random() - 0.5) * variation;
-                            const pointLng = lng + (Math.random() - 0.5) * variation;
+                            let pointLat, pointLng;
+                            
+                            // Distribución inteligente según tamaño del municipio
+                            if (superficie > 50) {
+                                // Ciudades grandes: distribución en cuadrícula + ruido
+                                const gridSize = Math.ceil(Math.sqrt(numPoints));
+                                const gridX = (i % gridSize) / gridSize;
+                                const gridY = Math.floor(i / gridSize) / gridSize;
+                                
+                                pointLat = lat + (gridY - 0.5) * variation + (Math.random() - 0.5) * variation * 0.3;
+                                pointLng = lng + (gridX - 0.5) * variation + (Math.random() - 0.5) * variation * 0.3;
+                            } else if (superficie > 20) {
+                                // Ciudades medianas: distribución circular
+                                const angle = (i / numPoints) * 2 * Math.PI;
+                                const distance = Math.sqrt(Math.random()) * variation * 0.5;
+                                
+                                pointLat = lat + distance * Math.cos(angle);
+                                pointLng = lng + distance * Math.sin(angle);
+                            } else {
+                                // Municipios pequeños: distribución aleatoria concentrada
+                                pointLat = lat + (Math.random() - 0.5) * variation * 0.8;
+                                pointLng = lng + (Math.random() - 0.5) * variation * 0.8;
+                            }
                             
                             // Intensidad con variación para suavizado natural
                             const pointIntensity = aiIntensity * (0.8 + Math.random() * 0.4);
@@ -335,9 +361,9 @@ class TourismAlarmApp {
                             heatmapPoints.push([pointLat, pointLng, pointIntensity]);
                         }
                         
-                        // Log para municipios principales
+                        // Log para municipios principales con nueva información
                         if (['Barcelona', 'Girona', 'Tarragona', 'Lleida', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
-                            console.log(`🎯 ${municipality.name}: lat=${lat.toFixed(4)}, lng=${lng.toFixed(4)}, intensidad=${aiIntensity.toFixed(3)}, puntos=${numPoints}`);
+                            console.log(`🎯 ${municipality.name}: ${superficie.toFixed(1)}km² → ${numPoints} puntos, variación=${(variation*100).toFixed(2)}km`);
                         }
                     }
                 } else {
