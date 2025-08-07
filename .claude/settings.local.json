@@ -18,7 +18,9 @@
       "WebFetch(domain:api.idescat.cat)",
       "WebFetch(domain:dadesobertes.diba.cat)",
       "WebFetch(domain:do.diba.cat)",
-      "WebFetch(domain:www.icgc.cat)"
+      "WebFetch(domain:www.icgc.cat)",
+      "Bash(ls:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
