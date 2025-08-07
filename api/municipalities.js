@@ -145,7 +145,10 @@ export default async function handler(req, res) {
       return areaEstimates[comarca] || 30; // Default 30 km²
     };
     
-    // Generar puntos para cada región proporcional a municipios reales
+    // ALGORITMO MEJORADO: Generar hasta alcanzar exactamente 947 municipios
+    console.log(`🎯 Objetivo: generar ${limit} municipios total`);
+    
+    // FASE 1: Generar municipios base por comarca (una pasada inicial)
     for (const region of cataloniaRegions) {
       if (municipalities.length >= limit) break;
       
@@ -153,7 +156,7 @@ export default async function handler(req, res) {
       const averageAreaKm2 = getEstimatedAreaByComarca(region.comarca, region.province);
       const pointsForRegion = calculatePointsForArea(averageAreaKm2);
       
-      console.log(`📏 ${region.comarca}: ~${averageAreaKm2}km² → ${pointsForRegion} puntos`);
+      console.log(`📏 ${region.comarca}: ~${averageAreaKm2}km² → ${pointsForRegion} puntos (base)`);
       
       // Generar los puntos calculados para esta comarca
       for (let i = 0; i < pointsForRegion && municipalities.length < limit; i++) {
@@ -240,7 +243,96 @@ export default async function handler(req, res) {
       }
     }
     
-    console.log(`✅ Generated ${municipalities.length} area-proportional points. Ready for AI integration.`);
+    console.log(`📊 FASE 1 completada: ${municipalities.length} municipios generados`);
+    
+    // FASE 2: Completar hasta alcanzar exactamente 947 municipios
+    if (municipalities.length < limit) {
+      const remaining = limit - municipalities.length;
+      console.log(`🔄 FASE 2: Generando ${remaining} municipios adicionales para completar`);
+      
+      // Múltiples pasadas hasta completar
+      let attempts = 0;
+      while (municipalities.length < limit && attempts < 10) {
+        const initialCount = municipalities.length;
+        
+        for (const region of cataloniaRegions) {
+          if (municipalities.length >= limit) break;
+          
+          // En cada pasada adicional, generar menos puntos por región
+          const additionalPoints = Math.max(1, Math.floor((limit - municipalities.length) / cataloniaRegions.length));
+          
+          for (let i = 0; i < additionalPoints && municipalities.length < limit; i++) {
+            // Distribución más aleatoria para municipios adicionales
+            const lat = region.centerLat + (Math.random() - 0.5) * region.radius * 2;
+            const lng = region.centerLng + (Math.random() - 0.5) * region.radius * 2;
+            
+            // Validar límites de Catalunya
+            if (lat >= 40.50 && lat <= 42.90 && lng >= 0.15 && lng <= 3.35) {
+              // Datos contextuales según comarca
+              const isCoastal = region.comarca.includes('Empordà') || region.comarca.includes('Selva') || 
+                               region.comarca.includes('Tarragonès') || region.comarca.includes('Baix Camp') ||
+                               region.comarca.includes('Maresme') || region.comarca.includes('Garraf');
+              const isPyrenees = region.comarca.includes('Pallars') || region.comarca.includes('Aran') || 
+                                region.comarca.includes('Ribagorça') || region.comarca.includes('Cerdanya') ||
+                                region.comarca.includes('Ripollès') || region.comarca.includes('Alta Ribagorça');
+              const isMetro = region.comarca.includes('Barcelonès') || region.comarca.includes('Vallès') ||
+                             region.comarca.includes('Baix Llobregat');
+              
+              let basePoblacio = 800;
+              let baseVisitants = 5000;
+              
+              if (isCoastal) {
+                basePoblacio = 2500;
+                baseVisitants = 50000;
+              } else if (isMetro) {
+                basePoblacio = 4000;
+                baseVisitants = 30000;
+              } else if (isPyrenees) {
+                basePoblacio = 300;
+                baseVisitants = 8000;
+              }
+              
+              const poblacio = Math.floor(Math.random() * basePoblacio * 1.5) + basePoblacio;
+              const visitants = Math.floor(Math.random() * baseVisitants * 1.2) + baseVisitants;
+              const ratio = visitants / poblacio;
+              
+              let alertLevel = 'low';
+              if (ratio > 15) alertLevel = 'critical';
+              else if (ratio > 8) alertLevel = 'high';
+              else if (ratio > 4) alertLevel = 'medium';
+              
+              municipalities.push({
+                id: municipioId.toString(),
+                name: `${region.comarca} Extra ${municipalities.length - 22}`,
+                comarca: region.comarca,
+                provincia: region.province,
+                poblacio,
+                visitants_anuals: visitants,
+                ratio_turistes: Math.round(ratio * 100) / 100,
+                alertLevel,
+                lat: Math.round(lat * 10000) / 10000,
+                lng: Math.round(lng * 10000) / 10000,
+                superficie_km2: Math.floor(Math.random() * 20) + 5, // Área estimada para adicionales
+                points_density: 1,  // Municipios adicionales = 1 punto cada uno
+                heatmap_intensity: ratio / 15     // Intensidad ajustada
+              });
+              municipioId++;
+            }
+          }
+        }
+        
+        // Evitar bucle infinito
+        if (municipalities.length === initialCount) {
+          console.log(`⚠️ No se pudieron generar más municipios en intento ${attempts + 1}`);
+          break;
+        }
+        
+        attempts++;
+        console.log(`🔄 Intento ${attempts}: ${municipalities.length}/${limit} municipios generados`);
+      }
+    }
+    
+    console.log(`✅ GENERACIÓN COMPLETA: ${municipalities.length}/${limit} municipios. Ready for AI integration.`);
     
     res.json({
       success: true,
