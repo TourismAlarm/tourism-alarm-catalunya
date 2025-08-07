@@ -391,13 +391,31 @@ class TourismAlarmApp {
                 throw new Error('No se pudieron generar puntos para el heatmap');
             }
             
-            // CONFIGURACIÓN HEATMAP PROFESIONAL para cobertura continua
+            // CONFIGURACIÓN HEATMAP INICIAL - se ajustará dinámicamente con zoom
+            const currentZoom = this.map.getZoom();
+            let initialRadius = 20, initialBlur = 15;
+            
+            // Configuración inicial según zoom actual
+            if (currentZoom <= 6) {
+                initialRadius = 15; initialBlur = 10;
+            } else if (currentZoom <= 8) {
+                initialRadius = 20; initialBlur = 15;
+            } else if (currentZoom <= 10) {
+                initialRadius = 30; initialBlur = 25;
+            } else if (currentZoom <= 12) {
+                initialRadius = 45; initialBlur = 35;
+            } else if (currentZoom <= 14) {
+                initialRadius = 60; initialBlur = 45;
+            } else {
+                initialRadius = 80; initialBlur = 60;
+            }
+            
             const heatmapConfig = {
-                radius: 25,          // Radio mayor para cobertura continua en todos los zooms
-                blur: 20,            // Más difuminado para evitar huecos al hacer zoom
-                minOpacity: 0.1,     // Más visible en zooms altos
-                maxZoom: 18,         // Zoom máximo optimizado para heatmap
-                max: 1.0,            // Intensidad máxima normalizada
+                radius: initialRadius,     // Radio inicial ajustado al zoom
+                blur: initialBlur,         // Blur inicial ajustado al zoom
+                minOpacity: 0.05,          // Mínima opacidad para transiciones suaves
+                maxZoom: 18,               // Zoom máximo soportado
+                max: 1.0,                  // Intensidad máxima normalizada
                 gradient: {
                     // Gradiente meteorológico con más transparencia inicial
                     0.0: 'rgba(255, 255, 255, 0)',   // Completamente transparente
@@ -430,29 +448,40 @@ class TourismAlarmApp {
             
             console.log('✅ HEATMAP REAL creado - Difuminado continuo tipo meteorológico');
             
-            // Control dinámico del radio según zoom para mantener cobertura continua
+            // Control dinámico del radio según zoom: MÁS zoom = MÁS radio necesario
             this.map.off('zoomend'); // Limpiar eventos anteriores
             this.map.on('zoomend', () => {
                 const currentZoom = this.map.getZoom();
-                let dynamicRadius = 25;
-                let dynamicBlur = 20;
                 
-                // Ajustar radio según zoom para mantener cobertura
-                if (currentZoom <= 7) {
+                // FÓRMULA CORRECTA: Radio aumenta exponencialmente con zoom
+                // Zoom bajo = puntos juntos visualmente = radio pequeño
+                // Zoom alto = puntos separados visualmente = radio grande
+                let dynamicRadius, dynamicBlur;
+                
+                if (currentZoom <= 6) {
+                    // Vista muy lejana de Catalunya
+                    dynamicRadius = 15;
+                    dynamicBlur = 10;
+                } else if (currentZoom <= 8) {
+                    // Vista general de Catalunya  
+                    dynamicRadius = 20;
+                    dynamicBlur = 15;
+                } else if (currentZoom <= 10) {
+                    // Vista regional
                     dynamicRadius = 30;
                     dynamicBlur = 25;
-                } else if (currentZoom <= 9) {
-                    dynamicRadius = 25;
-                    dynamicBlur = 20;
-                } else if (currentZoom <= 11) {
-                    dynamicRadius = 30;
-                    dynamicBlur = 25;
-                } else if (currentZoom <= 13) {
-                    dynamicRadius = 35;
-                    dynamicBlur = 28;
+                } else if (currentZoom <= 12) {
+                    // Vista provincial/comarcal
+                    dynamicRadius = 45;
+                    dynamicBlur = 35;
+                } else if (currentZoom <= 14) {
+                    // Vista municipal
+                    dynamicRadius = 60;
+                    dynamicBlur = 45;
                 } else {
-                    dynamicRadius = 40;
-                    dynamicBlur = 32;
+                    // Vista detallada/local
+                    dynamicRadius = 80;
+                    dynamicBlur = 60;
                 }
                 
                 // Actualizar configuración del heatmap
@@ -463,7 +492,7 @@ class TourismAlarmApp {
                     });
                 }
                 
-                console.log(`🎯 Zoom ${currentZoom}: radius=${dynamicRadius}, blur=${dynamicBlur}`);
+                console.log(`🎯 Zoom ${currentZoom}: radius=${dynamicRadius}, blur=${dynamicBlur} (CORREGIDO)`);
             });
             
             this.updateStats();
