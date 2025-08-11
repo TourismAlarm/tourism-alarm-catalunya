@@ -12,7 +12,7 @@ class TourismAlarmApp {
         
         // Sistema híbrido: API local en desarrollo, Vercel en producción
         this.apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000/api'
+            ? 'http://localhost:3001/api'
             : window.location.origin + '/api';
 
         console.log('🔌 Usando API:', this.apiBase);
@@ -21,8 +21,12 @@ class TourismAlarmApp {
             currentMetric: 'density',
             selectedPrediction: '48',
             isLoading: false,
-            apiStatus: 'connecting'
+            apiStatus: 'connecting',
+            aiUpdatesActive: false
         };
+        
+        // Iniciar actualizaciones IA automáticas cada 10 minutos
+        this.startAIUpdates();
         
         // Coordenadas que funcionaron
         this.COORDS = {
@@ -184,14 +188,17 @@ class TourismAlarmApp {
                 this.refreshData();
             });
         }
+
     }
 
     async loadMunicipalitiesData() {
         try {
-            console.log('🔄 Cargando datos de municipios...');
+            console.log('🔄 Cargando datos reales IDESCAT de municipios...');
             this.setApiStatus('connecting');
             
-            const response = await fetch(`${this.apiBase}/municipalities?limit=947`);
+            const apiUrl = `${this.apiBase}/municipalities?limit=947`;
+            console.log(`📡 Fetching from: ${apiUrl}`);
+            const response = await fetch(apiUrl);
             const result = await response.json();
             
             if (!result.success || !result.data) {
@@ -1339,6 +1346,77 @@ class TourismAlarmApp {
                 alertLevel: 'critical', latitude: 41.0765, longitude: 1.1398, hasCoordinates: true 
             }
         ];
+    }
+
+    startAIUpdates() {
+        console.log('🤖 Iniciando actualizaciones AI automáticas...');
+        
+        // Primera actualización inmediata
+        setTimeout(() => {
+            this.requestAIHeatmapUpdate();
+        }, 5000);
+        
+        // Actualizaciones cada 10 minutos
+        setInterval(() => {
+            if (this.state.aiUpdatesActive) {
+                this.requestAIHeatmapUpdate();
+            }
+        }, 10 * 60 * 1000);
+        
+        this.state.aiUpdatesActive = true;
+    }
+
+    async requestAIHeatmapUpdate() {
+        if (this.state.isLoading) return;
+        
+        try {
+            console.log('🧠 Solicitando análisis IA para actualizar heatmap...');
+            
+            const response = await fetch(`${this.apiBase}/ai-heatmap-update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.updates) {
+                console.log(`🎨 AI envió ${result.updates.length} actualizaciones de color`);
+                this.applyAIUpdates(result.updates, result.ai_insights);
+            }
+            
+        } catch (error) {
+            console.warn('⚠️ Error en actualización IA:', error.message);
+        }
+    }
+
+    applyAIUpdates(updates, insights) {
+        console.log('🎨 Aplicando actualizaciones de IA al heatmap...');
+        
+        // Actualizar intensidades según análisis IA
+        updates.forEach(update => {
+            const municipality = this.allMunicipalities.find(m => m.id === update.municipality_id);
+            if (municipality) {
+                // Actualizar intensidad del heatmap
+                municipality.heatmap_intensity = update.new_intensity;
+                municipality.ai_reason = update.reason;
+                
+                console.log(`🔄 ${municipality.name}: intensidad ${update.new_intensity} (${update.reason})`);
+            }
+        });
+        
+        // Actualizar heatmap visual con nuevas intensidades
+        this.createHeatmap();
+        
+        // Mostrar insights de IA en la UI
+        this.displayAIInsights(insights);
+    }
+
+    displayAIInsights(insights) {
+        const predictionTitle = document.getElementById('predictionTitle');
+        if (predictionTitle && insights) {
+            predictionTitle.innerHTML = `🤖 IA Análisis - ${insights.recommended_action || 'Monitoreando'}`;
+            predictionTitle.style.color = insights.critical_alerts > 5 ? '#ff0000' : '#333';
+        }
     }
 }
 

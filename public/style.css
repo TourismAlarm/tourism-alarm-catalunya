@@ -197,6 +197,79 @@ body {
     position: relative;
 }
 
+/* Toggle switch styles */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.toggle-container input[type="checkbox"] {
+    display: none;
+}
+
+.toggle-label {
+    position: relative;
+    display: inline-block;
+    width: 100px;
+    height: 30px;
+    background: #ddd;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: var(--transition);
+    overflow: hidden;
+}
+
+.toggle-label::after {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: var(--transition);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-container input[type="checkbox"]:checked + .toggle-label {
+    background: var(--primary-color);
+}
+
+.toggle-container input[type="checkbox"]:checked + .toggle-label::after {
+    transform: translateX(70px);
+}
+
+.toggle-text-static,
+.toggle-text-real {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 600;
+    color: #666;
+    pointer-events: none;
+}
+
+.toggle-text-static {
+    left: 8px;
+}
+
+.toggle-text-real {
+    right: 6px;
+    color: white;
+}
+
+.data-source-info {
+    margin-top: 4px;
+}
+
+.data-source-info small {
+    color: #666;
+    font-size: 11px;
+}
+
 .search-input input {
     padding-left: 40px;
 }
