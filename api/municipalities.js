@@ -32,8 +32,8 @@ export default async function handler(req, res) {
         ratio_turistes: muni.tourism_pressure,
         alertLevel: muni.tourism_pressure > 5 ? 'critical' : 
                    muni.tourism_pressure > 2 ? 'high' : 'medium',
-        lat: muni.lat || generateCataloniaCoordinate().lat,
-        lng: muni.lng || generateCataloniaCoordinate().lng,
+        lat: muni.lat,
+        lng: muni.lng,
         superficie_km2: muni.area_km2,
         heatmap_intensity: Math.min(1.0, muni.tourism_pressure / 10),
         points_density: Math.max(5, Math.floor(Math.sqrt(muni.area_km2) * 3))

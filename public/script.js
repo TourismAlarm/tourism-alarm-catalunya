@@ -12,7 +12,7 @@ class TourismAlarmApp {
         
         // Sistema híbrido: API local en desarrollo, Vercel en producción
         this.apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3001/api'
+            ? 'http://localhost:3004/api'
             : window.location.origin + '/api';
 
         console.log('🔌 Usando API:', this.apiBase);
@@ -117,19 +117,21 @@ class TourismAlarmApp {
         );
     }
 
-    // NUEVA FUNCIÓN: Verificar si coordenadas están en Catalunya tierra firme
+    // FUNCIÓN MEJORADA: Verificar si coordenadas están en Catalunya tierra firme
     isValidCataluniaCoordinate(lat, lng) {
-        // Límites más estrictos para Catalunya (sin mar)
-        const withinBounds = lat >= 40.52 && lat <= 42.86 && 
-                            lng >= 0.16 && lng <= 3.22; // Límite este reducido
+        // Límites estrictos de Catalunya (sin mar ni países vecinos)
+        const inCatalunya = lat >= 40.52 && lat <= 42.86 && lng >= 0.16 && lng <= 3.22;
         
-        const notInSea = !this.isInSea(lat, lng);
-        
-        // Verificaciones adicionales para zonas problemáticas
-        const notInFrance = !(lat > 42.6 && lng > 2.8); // Evitar sur de Francia
+        // Excluir zonas problemáticas específicas
+        const notInSea = !(lng > 3.22 || (lat < 41.2 && lng > 2.5));
+        const notInFrance = !(lat > 42.5 && lng > 2.5);
+        const notInAndorra = !(lat > 42.4 && lat < 42.66 && lng > 1.4 && lng < 1.78);
         const notInAragon = !(lng < 0.3); // Evitar Aragón occidental
         
-        return withinBounds && notInSea && notInFrance && notInAragon;
+        // Verificar zonas marítimas con más precisión
+        const notInMediterranean = !this.isInSea(lat, lng);
+        
+        return inCatalunya && notInSea && notInFrance && notInAndorra && notInAragon && notInMediterranean;
     }
 
     setupEventListeners() {
@@ -310,6 +312,8 @@ class TourismAlarmApp {
             const heatmapPoints = [];
             let municipiosProcessados = 0;
             let municipiosSinCoords = 0;
+            let puntosGenerados = 0;
+            let puntosFiltrados = 0;
             
             this.allMunicipalities.forEach(municipality => {
                 // Verificar coordenadas válidas
@@ -321,11 +325,11 @@ class TourismAlarmApp {
                     // Calcular intensidad IA para este municipio
                     const aiIntensity = this.calculateAIIntensity(municipality);
                     
-                    // Validar coordenadas dentro de Catalunya
+                    // Validar coordenadas dentro de Catalunya usando validación estricta
                     const lat = municipality.latitude;
                     const lng = municipality.longitude;
                     
-                    if (lat >= 40.5 && lat <= 42.9 && lng >= 0.1 && lng <= 3.3) {
+                    if (this.isValidCataluniaCoordinate(lat, lng)) {
                         // Calcular puntos y área de cobertura según superficie real del municipio
                         const superficie = municipality.superficie_km2 || 10; // Default 10 km²
                         
@@ -361,11 +365,18 @@ class TourismAlarmApp {
                                 pointLng = lng + (Math.random() - 0.5) * variation * 0.8;
                             }
                             
-                            // Intensidad con variación para suavizado natural
-                            const pointIntensity = aiIntensity * (0.8 + Math.random() * 0.4);
+                            puntosGenerados++; // Contar punto generado
                             
-                            // Añadir punto al heatmap: [lat, lng, intensity]
-                            heatmapPoints.push([pointLat, pointLng, pointIntensity]);
+                            // VALIDACIÓN CRÍTICA: Solo añadir si el punto generado está en Catalunya
+                            if (this.isValidCataluniaCoordinate(pointLat, pointLng)) {
+                                // Intensidad con variación para suavizado natural
+                                const pointIntensity = aiIntensity * (0.8 + Math.random() * 0.4);
+                                
+                                // Añadir punto al heatmap: [lat, lng, intensity]
+                                heatmapPoints.push([pointLat, pointLng, pointIntensity]);
+                            } else {
+                                puntosFiltrados++; // Contar punto filtrado
+                            }
                         }
                         
                         // Log para municipios principales con nueva información
@@ -380,6 +391,10 @@ class TourismAlarmApp {
             
             console.log(`📊 Procesados: ${municipiosProcessados} municipios, ${municipiosSinCoords} sin coordenadas`);
             console.log(`🔥 Puntos heatmap generados: ${heatmapPoints.length}`);
+            console.log(`🎯 Filtrado de coordenadas: ${puntosGenerados} generados, ${puntosFiltrados} filtrados fuera de Catalunya (${((puntosFiltrados/puntosGenerados)*100).toFixed(1)}%)`);
+            
+            // ANÁLISIS DE COBERTURA TERRITORIAL
+            this.analyzeTerritoryCoverage(heatmapPoints, municipiosProcessados, municipiosSinCoords);
             
             // DEBUGGING: Mostrar muestra de coordenadas para verificar que son correctas
             if (heatmapPoints.length > 0) {
@@ -492,10 +507,21 @@ class TourismAlarmApp {
                 let dynamicRadius, dynamicBlur;
                 
                 if (currentZoom <= 6) {
-                    // Vista muy lejana de Catalunya
-                    dynamicRadius = 15;
-                    dynamicBlur = 10;
-                } else if (currentZoom <= 8) {
+                    // Vista muy lejana de Catalunya - OCULTAR heatmap para mejor visualización
+                    if (this.heatmapLayer) {
+                        this.map.removeLayer(this.heatmapLayer);
+                        console.log(`🙈 Zoom ${currentZoom}: Heatmap OCULTO para mejor visualización general`);
+                    }
+                    return; // Salir sin configurar radius
+                } else {
+                    // Mostrar heatmap si estaba oculto
+                    if (this.heatmapLayer && !this.map.hasLayer(this.heatmapLayer)) {
+                        this.map.addLayer(this.heatmapLayer);
+                        console.log(`👁️ Zoom ${currentZoom}: Heatmap VISIBLE`);
+                    }
+                }
+                
+                if (currentZoom <= 8) {
                     // Vista general de Catalunya  
                     dynamicRadius = 20;
                     dynamicBlur = 15;
@@ -517,8 +543,8 @@ class TourismAlarmApp {
                     dynamicBlur = 60;
                 }
                 
-                // Actualizar configuración del heatmap
-                if (this.heatmapLayer) {
+                // Actualizar configuración del heatmap (solo si está visible)
+                if (this.heatmapLayer && this.map.hasLayer(this.heatmapLayer)) {
                     this.heatmapLayer.setOptions({
                         radius: dynamicRadius,
                         blur: dynamicBlur
@@ -529,6 +555,18 @@ class TourismAlarmApp {
             });
             
             this.updateStats();
+            
+            // DEBUG ADICIONAL: Información detallada del heatmap
+            console.log(`
+=== DEBUG HEATMAP ===
+Municipios procesados: ${this.allMunicipalities.length}
+Puntos generados: ${puntosGenerados}
+Puntos filtrados: ${puntosFiltrados}
+Puntos finales: ${heatmapPoints.length}
+Ejemplo punto: ${heatmapPoints[0] ? `[${heatmapPoints[0][0].toFixed(4)}, ${heatmapPoints[0][1].toFixed(4)}]` : 'ninguno'}
+Eficiencia filtrado: ${puntosFiltrados > 0 ? ((puntosFiltrados/puntosGenerados)*100).toFixed(1) : 0}% puntos rechazados
+==================
+`);
             
         } catch (error) {
             console.error('❌ Error creating heatmap:', error);
@@ -1297,20 +1335,45 @@ class TourismAlarmApp {
                 console.log(`🌍 ${municipality.name} (${currentPredictionWindow}h): Tendencia global - Riesgo ${municipality.ai_risk_level}`);
             }
             
-        // PRIORIDAD 4: Fallback a datos estáticos (último recurso)
+        // PRIORIDAD 4: Algoritmo inteligente basado en datos disponibles (mejorado)
         } else {
-            if (municipality.alertLevel === 'critical') intensidad = 1.0;
-            else if (municipality.alertLevel === 'high') intensidad = 0.75;
-            else if (municipality.alertLevel === 'medium') intensidad = 0.5;
-            else intensidad = 0.25;
+            // Base más diversa usando múltiples factores
+            let baseIntensity = 0.3; // Base más baja para mayor rango
             
-            // Simulación de variación temporal para datos estáticos
+            // Factor 1: Ratio turistas (el más importante)
+            if (municipality.ratio_turistes > 50) baseIntensity = 0.9;
+            else if (municipality.ratio_turistes > 20) baseIntensity = 0.75;
+            else if (municipality.ratio_turistes > 5) baseIntensity = 0.6;
+            else if (municipality.ratio_turistes > 2) baseIntensity = 0.45;
+            
+            // Factor 2: Visitantes anuales
+            const visitors = municipality.visitants_anuals || 0;
+            if (visitors > 5000000) baseIntensity = Math.min(1.0, baseIntensity + 0.3);
+            else if (visitors > 2000000) baseIntensity = Math.min(1.0, baseIntensity + 0.2);
+            else if (visitors > 500000) baseIntensity = Math.min(1.0, baseIntensity + 0.1);
+            
+            // Factor 3: Alertas estáticas como modificador
+            if (municipality.alertLevel === 'critical') baseIntensity = Math.min(1.0, baseIntensity + 0.2);
+            else if (municipality.alertLevel === 'high') baseIntensity = Math.min(1.0, baseIntensity + 0.1);
+            
+            // Factor 4: Variación geográfica (costas más intensas)
+            const isCoastal = municipality.comarca && 
+                ['Selva', 'Alt Empordà', 'Baix Empordà', 'Maresme', 'Tarragonès', 'Baix Camp'].includes(municipality.comarca);
+            if (isCoastal) baseIntensity = Math.min(1.0, baseIntensity + 0.15);
+            
+            intensidad = baseIntensity;
+            
+            // Simulación de variación temporal mejorada
             const timeVariations = {
-                '24': 1.3,  // 30% más intenso a corto plazo
-                '48': 1.0,  // Normal
-                '168': 0.7  // 30% menos intenso a largo plazo
+                '24': 1.4,  // Más variación temporal
+                '48': 1.0,  
+                '168': 0.6  
             };
             intensidad *= (timeVariations[currentPredictionWindow] || 1.0);
+            
+            // Añadir variación aleatoria realista para simular fluctuaciones
+            intensidad += (Math.random() - 0.5) * 0.2;
+            intensidad = Math.max(0.1, Math.min(1.0, intensidad));
             
             if (municipality.name && ['Barcelona', 'Lloret de Mar', 'Salou'].includes(municipality.name)) {
                 console.log(`📊 ${municipality.name} (${currentPredictionWindow}h): Datos estáticos - Nivel ${municipality.alertLevel || 'normal'}`);
@@ -1417,6 +1480,79 @@ class TourismAlarmApp {
             predictionTitle.innerHTML = `🤖 IA Análisis - ${insights.recommended_action || 'Monitoreando'}`;
             predictionTitle.style.color = insights.critical_alerts > 5 ? '#ff0000' : '#333';
         }
+    }
+    
+    // NUEVA FUNCIÓN: Análisis de cobertura territorial
+    analyzeTerritoryCoverage(heatmapPoints, municipiosProcessados, municipiosSinCoords) {
+        console.log('\n🗺️ === ANÁLISIS DE COBERTURA TERRITORIAL ===');
+        
+        // Analizar distribución geográfica de puntos
+        const lats = heatmapPoints.map(p => p[0]);
+        const lngs = heatmapPoints.map(p => p[1]);
+        
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        
+        console.log(`🎯 Área cubierta: ${minLat.toFixed(3)}°N a ${maxLat.toFixed(3)}°N, ${minLng.toFixed(3)}°E a ${maxLng.toFixed(3)}°E`);
+        
+        // Identificar potenciales zonas sin cobertura
+        const expectedBounds = {
+            north: 42.86,  // Límite norte Catalunya (Pirineos)
+            south: 40.52,  // Límite sur Catalunya (Terres de l'Ebre)
+            west: 0.16,    // Límite oeste Catalunya (Valle de Arán)
+            east: 3.22     // Límite este Catalunya (Costa Brava)
+        };
+        
+        const coverage = {
+            north: maxLat >= expectedBounds.north - 0.1,
+            south: minLat <= expectedBounds.south + 0.1,
+            west: minLng <= expectedBounds.west + 0.1,
+            east: maxLng >= expectedBounds.east - 0.1
+        };
+        
+        console.log('\n🗺️ Cobertura por zonas:');
+        console.log(`  Norte (Pirineos): ${coverage.north ? '✅' : '❌'} ${maxLat.toFixed(3)}°N`);
+        console.log(`  Sur (Terres Ebre): ${coverage.south ? '✅' : '❌'} ${minLat.toFixed(3)}°N`);
+        console.log(`  Oeste (Valle Arán): ${coverage.west ? '✅' : '❌'} ${minLng.toFixed(3)}°E`);
+        console.log(`  Este (Costa Brava): ${coverage.east ? '✅' : '❌'} ${maxLng.toFixed(3)}°E`);
+        
+        // Análisis de municipios sin coordenadas por provincia
+        const municipiossinCoordsPorProvincia = {};
+        this.allMunicipalities.forEach(muni => {
+            if (!muni.latitude || !muni.longitude || isNaN(muni.latitude) || isNaN(muni.longitude)) {
+                const provincia = muni.provincia || 'Desconocida';
+                municipiossinCoordsPorProvincia[provincia] = (municipiossinCoordsPorProvincia[provincia] || 0) + 1;
+            }
+        });
+        
+        if (Object.keys(municipiossinCoordsPorProvincia).length > 0) {
+            console.log('\n⚠️ Municipios SIN coordenadas por provincia:');
+            Object.entries(municipiossinCoordsPorProvincia).forEach(([provincia, count]) => {
+                console.log(`  ${provincia}: ${count} municipios`);
+            });
+        }
+        
+        // Recomendaciones
+        console.log('\n📝 RECOMENDACIONES:');
+        if (municipiosSinCoords > 0) {
+            console.log(`• Revisar ${municipiosSinCoords} municipios sin coordenadas válidas`);
+        }
+        
+        const zonasSinCobertura = [];
+        if (!coverage.north) zonasSinCobertura.push('Pirineos Norte');
+        if (!coverage.south) zonasSinCobertura.push('Terres de l\'Ebre Sur');
+        if (!coverage.west) zonasSinCobertura.push('Valle de Arán Oeste');
+        if (!coverage.east) zonasSinCobertura.push('Costa Brava Este');
+        
+        if (zonasSinCobertura.length > 0) {
+            console.log(`• Posibles zonas con menor cobertura: ${zonasSinCobertura.join(', ')}`);
+        } else {
+            console.log('✅ Cobertura territorial completa de Catalunya');
+        }
+        
+        console.log('='.repeat(50) + '\n');
     }
 }
 

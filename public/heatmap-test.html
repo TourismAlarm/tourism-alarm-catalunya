@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔥 DIAGNÓSTICO HEATMAP - Tourism Alarm</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+    <style>
+        body { margin: 0; font-family: 'Courier New', monospace; background: #000; color: #0f0; }
+        #map { height: 60vh; width: 100%; border: 2px solid #0f0; }
+        #diagnostico { 
+            height: 40vh; overflow-y: auto; padding: 10px; 
+            background: #001100; border: 2px solid #0f0; font-size: 12px;
+        }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+        .error { color: #f00; }
+        .info { color: #0af; }
+        .header { color: #fff; font-weight: bold; background: #333; padding: 5px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="diagnostico">
+        <div class="header">🔥 DIAGNÓSTICO AUTOMÁTICO HEATMAP TOURISM ALARM 🔥</div>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            document.getElementById('logs').appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        };
+
+        async function diagnosticoCompleto() {
+            log('🚀 INICIANDO DIAGNÓSTICO AUTOMÁTICO DEL HEATMAP', 'header');
+            
+            // PRUEBA 1: Conectividad API
+            log('📡 Probando conectividad con API...', 'info');
+            try {
+                const response = await fetch('http://localhost:3004/api/municipalities?limit=50');
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    log(`✅ API FUNCIONA: ${data.data.length} municipios recibidos`, 'success');
+                    log(`📊 Fuente de datos: ${data.source}`, 'info');
+                    
+                    // Analizar diversidad de intensidades
+                    const intensidades = data.data.map(m => m.heatmap_intensity || 0);
+                    const min = Math.min(...intensidades);
+                    const max = Math.max(...intensidades);
+                    const avg = intensidades.reduce((a,b) => a+b, 0) / intensidades.length;
+                    
+                    log(`🎨 INTENSIDADES: min=${min.toFixed(3)}, max=${max.toFixed(3)}, promedio=${avg.toFixed(3)}`, 'info');
+                    
+                    if (max - min < 0.1) {
+                        log('⚠️ PROBLEMA: Poca diversidad de intensidades (colores similares)', 'warning');
+                    } else {
+                        log('✅ Buena diversidad de intensidades (colores variados)', 'success');
+                    }
+                } else {
+                    log('❌ API no devuelve datos válidos', 'error');
+                    return false;
+                }
+            } catch (error) {
+                log(`❌ ERROR API: ${error.message}`, 'error');
+                return false;
+            }
+
+            // PRUEBA 2: Inicialización del mapa
+            log('🗺️ Inicializando mapa base...', 'info');
+            try {
+                const map = L.map('map').setView([41.5868, 1.8174], 8);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'OpenStreetMap'
+                }).addTo(map);
+                log('✅ Mapa base inicializado correctamente', 'success');
+
+                // PRUEBA 3: Generar heatmap con datos reales
+                log('🔥 Generando heatmap con datos reales...', 'info');
+                const fullResponse = await fetch('http://localhost:3004/api/municipalities?limit=947');
+                const fullData = await fullResponse.json();
+                
+                if (fullData.success && fullData.data) {
+                    const heatmapPoints = [];
+                    let municipiosConCoords = 0;
+                    let municipiosSinCoords = 0;
+                    
+                    fullData.data.forEach(municipality => {
+                        if (municipality.lat && municipality.lng && 
+                            !isNaN(municipality.lat) && !isNaN(municipality.lng)) {
+                            
+                            municipiosConCoords++;
+                            
+                            // Simular algoritmo de intensidad mejorado
+                            let intensity = 0.3; // Base
+                            
+                            // Factor ratio turistas
+                            if (municipality.ratio_turistes > 50) intensity = 0.9;
+                            else if (municipality.ratio_turistes > 20) intensity = 0.75;
+                            else if (municipality.ratio_turistes > 5) intensity = 0.6;
+                            else if (municipality.ratio_turistes > 2) intensity = 0.45;
+                            
+                            // Factor visitantes
+                            const visitors = municipality.visitants_anuals || 0;
+                            if (visitors > 5000000) intensity = Math.min(1.0, intensity + 0.3);
+                            else if (visitors > 2000000) intensity = Math.min(1.0, intensity + 0.2);
+                            else if (visitors > 500000) intensity = Math.min(1.0, intensity + 0.1);
+                            
+                            // Variación aleatoria
+                            intensity += (Math.random() - 0.5) * 0.2;
+                            intensity = Math.max(0.1, Math.min(1.0, intensity));
+                            
+                            // Crear múltiples puntos según superficie
+                            const superficie = municipality.superficie_km2 || 10;
+                            const numPoints = Math.max(3, Math.floor(Math.sqrt(superficie) * 2));
+                            const variation = Math.min(0.08, Math.max(0.005, Math.sqrt(superficie) * 0.008));
+                            
+                            for (let i = 0; i < numPoints; i++) {
+                                const pointLat = municipality.lat + (Math.random() - 0.5) * variation;
+                                const pointLng = municipality.lng + (Math.random() - 0.5) * variation;
+                                const pointIntensity = intensity * (0.8 + Math.random() * 0.4);
+                                
+                                heatmapPoints.push([pointLat, pointLng, pointIntensity]);
+                            }
+                        } else {
+                            municipiosSinCoords++;
+                        }
+                    });
+                    
+                    log(`📊 ESTADÍSTICAS: ${municipiosConCoords} municipios con coordenadas, ${municipiosSinCoords} sin coordenadas`, 'info');
+                    log(`🔥 Puntos heatmap generados: ${heatmapPoints.length}`, 'info');
+                    
+                    if (heatmapPoints.length > 0) {
+                        // Crear heatmap
+                        const heatLayer = L.heatLayer(heatmapPoints, {
+                            radius: 25,
+                            blur: 15,
+                            maxZoom: 18,
+                            gradient: {
+                                0.0: 'rgba(0,0,255,0)',
+                                0.2: '#0000FF',
+                                0.4: '#00FF00', 
+                                0.6: '#FFFF00',
+                                0.8: '#FF8000',
+                                1.0: '#FF0000'
+                            }
+                        }).addTo(map);
+                        
+                        // Analizar distribución de intensidades
+                        const intensidades = heatmapPoints.map(p => p[2]);
+                        const stats = {
+                            min: Math.min(...intensidades),
+                            max: Math.max(...intensidades),
+                            avg: intensidades.reduce((a,b) => a+b, 0) / intensidades.length
+                        };
+                        
+                        log(`🎨 ANÁLISIS DE COLORES:`, 'header');
+                        log(`   Intensidad mínima: ${stats.min.toFixed(3)} (azul/verde)`, 'info');
+                        log(`   Intensidad máxima: ${stats.max.toFixed(3)} (naranja/rojo)`, 'info');
+                        log(`   Intensidad promedio: ${stats.avg.toFixed(3)}`, 'info');
+                        
+                        // Distribución por rangos de color
+                        const rangos = {
+                            azul: intensidades.filter(i => i <= 0.2).length,
+                            verde: intensidades.filter(i => i > 0.2 && i <= 0.4).length,
+                            amarillo: intensidades.filter(i => i > 0.4 && i <= 0.6).length,
+                            naranja: intensidades.filter(i => i > 0.6 && i <= 0.8).length,
+                            rojo: intensidades.filter(i => i > 0.8).length
+                        };
+                        
+                        log(`📈 DISTRIBUCIÓN DE COLORES:`, 'header');
+                        log(`   🔵 Azul (0.0-0.2): ${rangos.azul} puntos`, 'info');
+                        log(`   🟢 Verde (0.2-0.4): ${rangos.verde} puntos`, 'info');
+                        log(`   🟡 Amarillo (0.4-0.6): ${rangos.amarillo} puntos`, 'info');
+                        log(`   🟠 Naranja (0.6-0.8): ${rangos.naranja} puntos`, 'info');
+                        log(`   🔴 Rojo (0.8-1.0): ${rangos.rojo} puntos`, 'info');
+                        
+                        if (rangos.azul + rangos.verde > heatmapPoints.length * 0.8) {
+                            log('⚠️ ADVERTENCIA: Predominan colores fríos (poca intensidad)', 'warning');
+                        } else if (rangos.rojo + rangos.naranja > heatmapPoints.length * 0.3) {
+                            log('✅ Buena distribución con colores cálidos (alta intensidad)', 'success');
+                        } else {
+                            log('✅ Distribución equilibrada de colores', 'success');
+                        }
+                        
+                        // PRUEBA 4: Funcionalidad zoom
+                        log('🎯 Probando funcionalidad de zoom...', 'info');
+                        map.on('zoomend', () => {
+                            const currentZoom = map.getZoom();
+                            if (currentZoom <= 6) {
+                                log(`🙈 Zoom ${currentZoom}: Heatmap debería estar OCULTO`, 'warning');
+                            } else {
+                                log(`👁️ Zoom ${currentZoom}: Heatmap debería estar VISIBLE`, 'success');
+                            }
+                        });
+                        
+                        log('✅ HEATMAP CREADO EXITOSAMENTE', 'success');
+                        log('🎮 Prueba zoom in/out para verificar ocultación automática', 'info');
+                        
+                    } else {
+                        log('❌ No se generaron puntos para el heatmap', 'error');
+                    }
+                }
+                
+            } catch (error) {
+                log(`❌ ERROR generando heatmap: ${error.message}`, 'error');
+            }
+            
+            log('🏁 DIAGNÓSTICO COMPLETADO', 'header');
+        }
+
+        // Ejecutar diagnóstico cuando cargue la página
+        document.addEventListener('DOMContentLoaded', diagnosticoCompleto);
+    </script>
+</body>
+</html>
