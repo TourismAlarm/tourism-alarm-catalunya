@@ -88,7 +88,7 @@ class TourismAlarmApp {
         this.map = L.map('map').setView([41.8, 1.8], 8);
         
         // LÍMITES DE ZOOM - Solo limitar ZOOM IN máximo
-        this.map.options.maxZoom = 15; // Límite máximo zoom in ajustado
+        this.map.options.maxZoom = 11; // Límite máximo zoom in
         // NO limitar zoom out - que se pueda hacer zoom out libremente
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -462,20 +462,18 @@ class TourismAlarmApp {
                 radius: initialRadius,     // Radio inicial ajustado al zoom
                 blur: initialBlur,         // Blur inicial ajustado al zoom
                 minOpacity: 0.05,          // Mínima opacidad para transiciones suaves
-                maxZoom: 15,               // Zoom máximo soportado (coherente con mapa)
+                maxZoom: 18,               // Zoom máximo soportado
                 max: 1.0,                  // Intensidad máxima normalizada
                 gradient: {
-                    // Gradiente MEJORADO: más expresivo y diverso
-                    0.0: 'rgba(0, 0, 255, 0)',       // Transparente
-                    0.1: '#0080FF',                    // Azul claro (muy bajo)
-                    0.2: '#00FF80',                    // Verde agua (bajo)
-                    0.3: '#80FF00',                    // Verde lima (medio-bajo)
-                    0.4: '#FFFF00',                    // Amarillo (medio)
-                    0.5: '#FFB000',                    // Amarillo-naranja (medio-alto)
-                    0.6: '#FF8000',                    // Naranja (alto)
-                    0.7: '#FF4000',                    // Rojo-naranja (muy alto)
-                    0.8: '#FF0000',                    // Rojo (crítico)
-                    1.0: '#CC0000'                     // Rojo oscuro (máximo)
+                    // Gradiente meteorológico con más transparencia inicial
+                    0.0: 'rgba(255, 255, 255, 0)',   // Completamente transparente
+                    0.05: 'rgba(0, 255, 0, 0.3)',    // Verde muy transparente
+                    0.2: '#00FF00',                    // Verde bajo riesgo
+                    0.4: '#7FFF00',                    // Verde-amarillo
+                    0.6: '#FFFF00',                    // Amarillo medio
+                    0.75: '#FFA500',                   // Naranja alto
+                    0.9: '#FF4500',                    // Rojo-naranja crítico  
+                    1.0: '#FF0000'                     // Rojo máximo
                 }
             };
             
@@ -494,17 +492,7 @@ class TourismAlarmApp {
             });
             
             // CREAR HEATMAP CONTINUO CON L.heatLayer
-            // Crear heatmap pero verificar zoom inicial antes de mostrarlo
-            this.heatmapLayer = L.heatLayer(heatmapPoints, heatmapConfig);
-            
-            // Solo agregar al mapa si zoom > 6
-            const currentZoom = this.map.getZoom();
-            if (currentZoom > 6) {
-                this.heatmapLayer.addTo(this.map);
-                console.log(`👁️ Zoom inicial ${currentZoom}: Heatmap VISIBLE`);
-            } else {
-                console.log(`🙈 Zoom inicial ${currentZoom}: Heatmap OCULTO para mejor visualización`);
-            }
+            this.heatmapLayer = L.heatLayer(heatmapPoints, heatmapConfig).addTo(this.map);
             
             console.log('✅ HEATMAP REAL creado - Difuminado continuo tipo meteorológico');
             
@@ -621,16 +609,12 @@ Eficiencia filtrado: ${puntosFiltrados > 0 ? ((puntosFiltrados/puntosGenerados)*
                 minOpacity: 0.2,
                 max: 1.0,
                 gradient: {
-                    0.0: 'rgba(0, 0, 255, 0)',       // Transparente
-                    0.1: '#0080FF',                    // Azul claro
-                    0.2: '#00FF80',                    // Verde agua
-                    0.3: '#80FF00',                    // Verde lima
-                    0.4: '#FFFF00',                    // Amarillo
-                    0.5: '#FFB000',                    // Amarillo-naranja
-                    0.6: '#FF8000',                    // Naranja
-                    0.7: '#FF4000',                    // Rojo-naranja
-                    0.8: '#FF0000',                    // Rojo
-                    1.0: '#CC0000'                     // Rojo oscuro
+                    0.0: 'rgba(0, 255, 0, 0)',
+                    0.2: '#00FF00',
+                    0.4: '#7FFF00', 
+                    0.6: '#FFFF00',
+                    0.8: '#FFA500',
+                    1.0: '#FF0000'
                 }
             };
             
