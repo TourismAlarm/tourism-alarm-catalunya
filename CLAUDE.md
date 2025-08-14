@@ -3,11 +3,12 @@
 ## RESUMEN DEL PROYECTO
 Sistema de alarma turística para Catalunya con heatmap dinámico que muestra 947 municipios con intensidades variables según datos reales de turismo y predicciones IA.
 
-## ESTADO ACTUAL ✅
-- **URL PRODUCCIÓN**: https://tourism-alarm-catalunya-bl361xh3t-jordis-projects-efb2ace7.vercel.app
-- **MUNICIPIOS**: 947 exactos (Barcelona: 178, Girona: 220, Tarragona: 139, Lleida: 410)
-- **HEATMAP**: Funcional con distribución automática por superficie
-- **ZOOM**: Configuración corregida (15-80px radio según nivel)
+## ESTADO ACTUAL ✅ (Actualizado 13/08/2025 17:00)
+- **URL PRODUCCIÓN**: https://tourism-alarm-catalunya-9t6ldr2kk-jordis-projects-efb2ace7.vercel.app
+- **MUNICIPIOS**: 947 exactos (Barcelona: 311, Girona: 225, Tarragona: 187, Lleida: 233) 
+- **HEATMAP**: Funcional pero con problema de colores (solo verde visible)
+- **ZOOM**: Sistema dinámico 15-80px funciona correctamente
+- **⚠️ PROBLEMA IDENTIFICADO**: Gradiente heatmap poco expresivo - predominio verde hasta 0.45
 
 ## ARQUITECTURA TÉCNICA
 
@@ -166,3 +167,112 @@ console.log('Zoom actual:', this.map.getZoom());
 - `vercel.json` - Configuración deploy
 
 **ESTADO**: ✅ Completamente funcional, listo para integración IA
+
+# SESIÓN 13/08/2025 - DIAGNÓSTICO HEATMAP Y ROLLBACK
+
+## PROBLEMA REPORTADO
+⚠️ **"El heatmap se ve fatal"** - Usuario reporta que solo se ven colores verdes uniformes
+
+## DIAGNÓSTICO REALIZADO
+
+### 1. ANÁLISIS EXTERNO (ChatGPT)
+- **URL analizada**: https://tourism-alarm-catalunya-ph5oa292a-jordis-projects-efb2ace7.vercel.app
+- **Problema identificado**: Gradiente poco expresivo - solo verde hasta valor 0.45
+- **Problema 2**: Falta lógica ocultación zoom ≤ 6
+- **Problema 3**: maxZoom inconsistente (mapa=11, heatmap=18)
+
+### 2. CORRECCIONES IMPLEMENTADAS (COMMIT 3f53331)
+```javascript
+// NUEVO GRADIENTE EXPRESIVO:
+0.0: Transparente
+0.1: Azul claro (muy bajo) 
+0.2: Verde agua (bajo)
+0.3: Verde lima (medio-bajo)
+0.4: Amarillo (medio)
+0.5: Amarillo-naranja (medio-alto) 
+0.6: Naranja (alto)
+0.7: Rojo-naranja (muy alto)
+0.8: Rojo (crítico)
+1.0: Rojo oscuro (máximo)
+
+// LÓGICA OCULTACIÓN MEJORADA:
+if (currentZoom <= 6) {
+    this.map.removeLayer(this.heatmapLayer);
+    console.log('Heatmap OCULTO');
+}
+```
+
+### 3. RESULTADO: PÁGINA ROTA ❌
+- **Problema**: Página se quedaba cargando infinitamente
+- **Causa**: Cambios al gradiente o lógica zoom causaron error JavaScript
+- **Acción inmediata**: ROLLBACK con `git revert 3f53331`
+
+## ROLLBACK EJECUTADO
+
+### Comandos utilizados:
+```bash
+git revert 3f53331 --no-edit  # Revert commit problemático
+git push origin main          # Push del rollback
+npx vercel --prod            # Deploy versión estable
+```
+
+### Estado post-rollback:
+- **Commit actual**: `a9e31c1` (revert de 3f53331)
+- **URL estable**: https://tourism-alarm-catalunya-9t6ldr2kk-jordis-projects-efb2ace7.vercel.app
+- **Funcionamiento**: ✅ Página carga correctamente
+- **API**: ✅ 947 municipios funcionando
+- **Problema original**: 🔄 Sin resolver - heatmap sigue con colores verdes uniformes
+
+## HERRAMIENTAS CREADAS
+
+### 1. Página Diagnóstico Automático
+- **Archivo**: `public/heatmap-test.html`
+- **Función**: Anliza API, coordenadas, intensidades, colores automáticamente
+- **URL**: https://tourism-alarm-catalunya-9t6ldr2kk-jordis-projects-efb2ace7.vercel.app/heatmap-test.html
+
+### 2. Análisis Cobertura Territorial
+- **Función**: `analyzeTerritoryCoverage()` en `public/script.js`
+- **Analiza**: Coordenadas, zonas sin cobertura, municipios sin coords
+- **Output**: Logs detallados de cobertura Catalunya
+
+## ALGORITMOS MEJORADOS (PERO REVERTIDOS)
+
+### Intensidad Inteligente Implementado:
+```javascript
+// Factor 1: Ratio turistas (más importante)
+if (municipality.ratio_turistes > 50) baseIntensity = 0.9;
+else if (municipality.ratio_turistes > 20) baseIntensity = 0.75;
+
+// Factor 2: Visitantes anuales
+if (visitors > 5000000) baseIntensity += 0.3;
+
+// Factor 3: Zona costera
+if (isCoastal) baseIntensity += 0.15;
+
+// Factor 4: Variación temporal + aleatoria
+intensidad *= timeVariations[currentPredictionWindow];
+intensidad += (Math.random() - 0.5) * 0.2;
+```
+
+## LECCIONES DE ESTA SESIÓN
+
+1. ❗ **Cambios gradiente pueden romper Leaflet.heat**: Modificaciones al gradiente causaron error crítico
+2. 🔄 **Rollback inmediato es crucial**: `git revert` salvó el día 
+3. 🕵️ **Análisis externo valioso**: ChatGPT identificó problemas que no veíamos internamente
+4. 🛠️ **Herramientas diagnóstico son esenciales**: `heatmap-test.html` ayuda a debugging visual
+5. ⚠️ **Problema original SIN resolver**: Heatmap sigue con predominio verde
+
+## PRÓXIMOS PASOS SUGERIDOS
+
+1. 📊 **Investigar intensidades reales**: Verificar por qué datos API son tan bajos (0.06-0.18)
+2. 🎨 **Modificar gradiente conservadoramente**: Cambios mínimos para evitar romper funcionalidad  
+3. 🔧 **Testing incremental**: Probar cada cambio localmente antes de deploy
+4. 📊 **Analizar datos backend**: Quizá el problema está en cómo se calculan las intensidades en API
+
+## ARCHIVOS AFECTADOS ESTA SESIÓN
+- `public/script.js` - Algoritmo intensidad + gradiente + zoom (REVERTIDO)
+- `public/heatmap-test.html` - Herramienta diagnóstico (NUEVA)
+- `CLAUDE.md` - Actualización memoria (ESTE ARCHIVO)
+
+**COMMIT HASH ESTABLE**: `a9e31c1` (post-rollback)
+**URL FUNCIONAL**: https://tourism-alarm-catalunya-9t6ldr2kk-jordis-projects-efb2ace7.vercel.app
